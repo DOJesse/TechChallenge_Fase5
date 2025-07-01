@@ -1,0 +1,19 @@
+# docker/Dockerfile.api
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Copia só o requirements da API
+COPY src/app/requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copia todo o código da pasta src (app + features)
+COPY src src
+
+# Ajusta PYTHONPATH para que o pacote src seja encontrado
+ENV PYTHONPATH=/app
+
+EXPOSE 8080
+
+CMD ["python", "-m", "src.app.main"]

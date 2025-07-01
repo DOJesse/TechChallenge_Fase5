@@ -1,87 +1,44 @@
-"""
-feature_engineering.py
-
-Módulo para geração de atributos (features) a partir do DataFrame de prospecção unificado.
-Baseado na pipeline completa de treinamento que inclui feature engineering conforme especificado no Datathon fileciteturn5file3
-e na estrutura dos JSONs detalhada no README fileciteturn6file1.
-
-Funções:
- - parse_dates: converte colunas de data e calcula diferenças de dias
- - extract_text_features: extrai contagens e métricas de texto (CV, skills)
- - encode_categoricals: codifica variáveis categóricas em inteiros
- - create_features: orquestra todas as etapas acima
-"""
-
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import LabelEncoder
+from typing import List
+from gensim.models import KeyedVectors
 
+# Colunas textuais para gerar embeddings
+text_features_list: List[str] = [
+    'titulo', 'modalidade', 'nome', 'comentario', 'recrutador',
+    'area_atuacao_cand', 'conhecimentos_tecnicos_cand',
+    'certificacoes_cand', 'outras_certificacoes_cand',
+    'qualificacoes_cand', 'experiencias_cand', 'cv_pt_cand',
+    'titulo_vaga_vaga', 'cliente_vaga', 'solicitante_cliente_vaga',
+    'nivel profissional_vaga', 'outro_idioma_vaga',
+    'areas_atuacao_vaga', 'principais_atividades_vaga',
+    'competencia_tecnicas_e_comportamentais_vaga'
+]
 
-def parse_dates(df: pd.DataFrame) -> pd.DataFrame:
+def document_vector(text: str, model: KeyedVectors, num_features: int) -> np.ndarray:
+    """Transforma um texto em um vetor médio de Word2Vec."""
+    if not isinstance(text, str) or not text.strip():
+        return np.zeros(num_features)
+    words = [w for w in text.split() if w in model.key_to_index]
+    if not words:
+        return np.zeros(num_features)
+    return np.mean([model[w] for w in words], axis=0)
+
+def expand_vector(
+    df: pd.DataFrame,
+    feature_list: List[str],
+    model: KeyedVectors,
+    num_features: int
+) -> pd.DataFrame:
     """
-    Converte colunas de data do formato string ('dd-mm-YYYY') para datetime
-    e calcula dias entre requisição e candidatura.
+    Para cada coluna de feature_list em df, aplica document_vector e
+    expande em num_features colunas (nome_0, nome_1, ..., nome_{N-1}).
+    Remove a coluna original e retorna só o DataFrame de embeddings.
     """
-    df = df.copy()
-    df['data_requisicao'] = pd.to_datetime(df['data_requisicao'], format='%d-%m-%Y', errors='coerce')
-    df['data_candidatura'] = pd.to_datetime(df['data_candidatura'], format='%d-%m-%Y', errors='coerce')
-    df['ultima_atualizacao'] = pd.to_datetime(df['ultima_atualizacao'], format='%d-%m-%Y', errors='coerce')
-    df['dias_para_candidatura'] = (df['data_candidatura'] - df['data_requisicao']).dt.days
-    return df
-
-
-def extract_text_features(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Gera atributos a partir de texto livre: contagem de palavras no CV e número de skills.
-    """
-    df = df.copy()
-    df['cv_word_count'] = df['cv_pt'].apply(lambda x: len(str(x).split()))
-    df['num_tech_skills'] = df['conhecimentos_tecnicos'].apply(
-        lambda s: len(str(s).split(',')) if pd.notnull(s) and s.strip() else 0
-    )
-    return df
-
-
-def encode_categoricals(df: pd.DataFrame) -> (pd.DataFrame, dict):
-    """
-    Codifica variáveis categóricas para uso em modelo:
-    situacao_candidado, nivel_academico, nivel_ingles, nivel_espanhol,
-    tipo_contratacao, nivel_profissional, prioridade_vaga, vaga_sap.
-    Retorna DataFrame com novas colunas '<col>_enc' e dicionário de LabelEncoders.
-    """
-    df = df.copy()
-    encoders = {}
-    cols = [
-        'situacao_candidado', 'nivel_academico', 'nivel_ingles', 'nivel_espanhol',
-        'tipo_contratacao', 'nivel_profissional', 'prioridade_vaga', 'vaga_sap'
-    ]
-    for col in cols:
-        le = LabelEncoder()
-        filled = df[col].fillna('NA').astype(str)
-        df[col + '_enc'] = le.fit_transform(filled)
-        encoders[col] = le
-    return df, encoders
-
-
-def create_features(df: pd.DataFrame) -> (pd.DataFrame, dict):
-    """
-    Executa toda a pipeline de feature engineering:
-    - parse_dates
-    - extract_text_features
-    - encode_categoricals
-    Retorna DataFrame com atributos novos e dicionário de encoders.
-    """
-    df_dates = parse_dates(df)
-    df_text = extract_text_features(df_dates)
-    df_final, encoders = encode_categoricals(df_text)
-    return df_final, encoders
-
-
-if __name__ == '__main__':
-    # Exemplo de uso após preprocess.py gerar 'data/processed/dataset.csv'
-    import os
-    base = os.path.dirname(os.path.dirname(__file__))
-    data_path = os.path.join(base, 'data', 'processed', 'dataset.csv')
-    df = pd.read_csv(data_path)
-    df_feat, encs = create_features(df)
-    print('Feature engineering concluída. Exemplo de colunas geradas:', df_feat.columns.tolist())
+    df_embeddings = pd.DataFrame(index=df.index)
+    for feature in feature_list:
+        emb = df[feature].apply(lambda x: document_vector(x, model, num_features))
+        cols = [f"{feature}_{i}" for i in range(num_features)]
+        expanded = pd.DataFrame(emb.tolist(), columns=cols, index=df.index)
+        df_embeddings = pd.concat([df_embeddings, expanded], axis=1)
+    return df_embeddings

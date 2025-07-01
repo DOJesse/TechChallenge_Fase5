@@ -1,0 +1,15 @@
+# Dockerfile.streamlit (em docker/)
+FROM python:3.10-slim
+WORKDIR /app
+
+# Copia o requirements.txt da pasta src/app para /app/requirements.txt
+COPY src/app/requirements.txt .
+
+# Instala as deps
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copia todo o código da raiz para /app
+COPY . .
+
+EXPOSE 8501
+CMD ["streamlit", "run", "streamlit_app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]

@@ -6,6 +6,12 @@ __pycache__/
 # C extensions
 *.so
 
+# Arquivos de dados para treino muito grandes
+*.json
+cbow_s50.txt
+*.kv
+*.npy
+
 # Distribution / packaging
 .Python
 build/
