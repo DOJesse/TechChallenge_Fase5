@@ -1,6 +1,6 @@
 # Datathon Machine Learning Engineering
 
-Este repositório contém a solução do Datathon de Machine Learning Engineering para otimizar o processo de "match" entre candidatos e vagas da Decision. Abaixo está a documentação de como configurar e executar cada etapa do projeto.
+Este repositório contém a solução do Datathon de Machine Learning Engineering para otimizar o processo de "match" entre candidatos e vagas da Decision. O aplicativo utiliza processamento de linguagem natural, engenharia de atributos e modelos de machine learning para sugerir o melhor encaixe entre perfis e oportunidades.
 
 ---
 
@@ -23,6 +23,8 @@ TechChallenge_Fase5/
 │           ├── applicants.json
 │           ├── prospects.json
 │           └── vagas.json
+├── src/word2vec/
+│   └── cbow_s50.txt               # Embeddings Word2Vec (baixar manualmente)
 ├── docker/
 │   ├── Dockerfile.api             # Dockerfile para API
 │   ├── Dockerfile.streamlit       # Dockerfile para Streamlit
@@ -68,7 +70,7 @@ TechChallenge_Fase5/src/word2vec/
 1. Clone o repositório:
 
    ```bash
-   git clone <URL-do-repositório>
+   git clone https://github.com/DOJesse/TechChallenge_Fase5
    cd TechChallenge_Fase5
    ```
 2. Crie e ative um ambiente virtual (venv):
@@ -83,45 +85,34 @@ TechChallenge_Fase5/src/word2vec/
    pip install -r src/app/requirements.txt
    ```
 
----
+4. Execute o aplicativo via Docker:
 
-## 4. Execução do App (Streamlit)
+   ```bash
+   docker-compose -f docker-compose.yaml up --build
+   ```
 
-```bash
-streamlit run streamlit_app.py
-```
-
-O app será iniciado em `http://localhost:8501`.
+   O app estará disponível em `localhost:8502`.
 
 ---
 
-## 5. Testes
+## 4. Como o aplicativo funciona
 
-Para rodar os testes unitários:
+O aplicativo Streamlit permite:
+- Executar o modelo de machine learning para sugerir o melhor match entre candidatos e vagas, considerando informações do currículo, experiências, habilidades e requisitos das vagas.
+- Visualizar a lista de candidatos mais aderentes a cada vaga, com scores de compatibilidade.
 
-```bash
-pytest tests/
-```
+### Interpretação dos resultados
+- **Ranking de candidatos**: Os candidatos são ordenados do mais ao menos compatível para cada vaga.
+- **Detalhes do match**: O app pode exibir os principais fatores que contribuíram para o score (ex: experiência, formação, habilidades técnicas).
 
----
-
-## 6. Contêiner Docker
-
-### Build e Run
-
-```bash
-cd docker
-# Para o app Streamlit:
-docker-compose -f docker-compose.yaml up --build
-```
-
-O app estará disponível em `localhost:8502`.
+Esses resultados auxiliam o RH a priorizar candidatos e entender os motivos do match sugerido pelo modelo.
 
 ---
 
-## 7. Observações
+## 5. Observações
 
 - Certifique-se de que os dados estejam em `src/data/raw/`.
+- O arquivo de embeddings deve estar em `src/word2vec/`.
 - Para executar scripts de engenharia de atributos ou manipulação de dados, utilize os módulos em `src/features/` e `src/app/`.
 - O modelo treinado e artefatos ficam em `src/models/`.
 

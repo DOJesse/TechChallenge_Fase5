@@ -1,88 +1,147 @@
 import os
+import re
 import streamlit as st
 from docx import Document
 import PyPDF2
-import requests
 
-# Configurações da página
+# Página e estilos
 st.set_page_config(page_title="Recruitment Match", layout="wide")
-st.title("Recruitment Match - Top 3 Candidatos")
-
-# URL da API (pode ser override por variável de ambiente)
-API_URL = os.getenv("API_URL", "http://localhost:8080")
-
-# Sidebar para parâmetros adicionais
-st.sidebar.header("Parâmetros adicionais")
-anos_exp = st.sidebar.number_input("Anos de Experiência", min_value=0, max_value=50, value=3)
-nivel_educacao = st.sidebar.selectbox(
-    "Nível de Educação",
-    ["Fundamental", "Médio", "Técnico", "Superior", "Pós-graduação", "Mestrado", "Doutorado"]
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-color: #f0f2f6;
+        color: #333;
+    }
+    .title {
+        font-size: 36px;
+        font-weight: bold;
+        color: #2c3e50;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    .card {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        margin: 10px;
+    }
+    </style>
+    """, unsafe_allow_html=True
 )
-nivel_idioma = st.sidebar.selectbox(
-    "Nível de Inglês",
-    ["Básico", "Intermediário", "Avançado", "Fluente", "Nativo"]
-)
-# Funções de extração
+st.markdown("<div class='title'>Recruitment Match - Avaliação por Requisitos</div>", unsafe_allow_html=True)
+
+# Estado inicial
+if 'avaliar' not in st.session_state:
+    st.session_state.avaliar = False
+if 'reset' not in st.session_state:
+    st.session_state.reset = 0
+
+# Chaves dinâmicas para limpar uploads ao reiniciar
+job_key = f"job_file_{st.session_state.reset}"
+cand_key = f"candidate_files_{st.session_state.reset}"
+
+# Funções utilitárias
 @st.cache_data
-def extract_job_text(uploaded_docx):
+def extract_docx(uploaded_docx):
     doc = Document(uploaded_docx)
-    return "\n".join([p.text for p in doc.paragraphs])
+    return "\n".join(p.text for p in doc.paragraphs)
 
 @st.cache_data
-def extract_resume_text(uploaded_pdf):
+def extract_pdf(uploaded_pdf):
     reader = PyPDF2.PdfReader(uploaded_pdf)
-    texts = []
-    for page in reader.pages:
-        page_text = page.extract_text()
-        if page_text:
-            texts.append(page_text)
-    return "\n".join(texts)
+    return "\n".join(page.extract_text() or "" for page in reader.pages)
 
-# Upload de arquivos
-job_file = st.file_uploader("Descrição da Vaga (.docx)", type=["docx"])
-candidate_files = st.file_uploader(
-    "Currículos (.pdf) - múltiplos",
-    type=["pdf"],
-    accept_multiple_files=True
+# Stopwords e matching
+STOPWORDS = set(['e','ou','com','para','dos','das','de','a','o','as','os','que','em','um','uma'])
+def extract_keywords(req: str):
+    return [w for w in re.findall(r"\w+", req.lower()) if len(w) > 3 and w not in STOPWORDS]
+
+def match_requirement(req: str, resume: str):
+    kws = extract_keywords(req)
+    matched = [w for w in kws if w in resume]
+    return (len(matched) >= len(kws) / 2 if kws else False, matched)
+
+# Sidebar Inputs
+st.sidebar.header("Configuração")
+job_file = st.sidebar.file_uploader("Descrição da Vaga (.docx)", type=["docx"], key=job_key)
+candidate_files = st.sidebar.file_uploader(
+    "Currículos (.pdf)", type=["pdf"], accept_multiple_files=True, key=cand_key
 )
 
-if job_file and candidate_files:
-    with st.spinner("Processando documentos e chamando a API..."):
-        job_text = extract_job_text(job_file)
-        results = []
-        for pdf in candidate_files:
-            resume_text = extract_resume_text(pdf)
-            payload = {
-                "resume": {
-                    "cv_pt_cand": resume_text,
-                    "tempo_exp": anos_exp,
-                    "nivel_educacao": nivel_educacao,
-                    "nivel_idioma": nivel_idioma
-                },
-                "job": {"principais_atividades_vaga": job_text}
-            }
-            try:
-                response = requests.post(f"{API_URL}/predict_raw", json=payload)
-                response.raise_for_status()
-                data = response.json()
-                score = data.get("probabilities", [None, None])[1]
-                results.append({"candidate": pdf.name, "score": score})
-            except Exception as e:
-                results.append({"candidate": pdf.name, "error": str(e)})
-        scored = [r for r in results if r.get("score") is not None]
-        top3 = sorted(scored, key=lambda x: x["score"], reverse=True)[:3]
-    if top3:
-        st.header("Top 3 Candidatos")
-        for i, cand in enumerate(top3, 1):
-            st.subheader(f"{i}. {cand['candidate']}")
-            st.progress(cand["score"])
-            st.write(f"Score de adequação: {cand['score']:.2%}")
+# Callbacks de botões
+def start():
+    st.session_state.avaliar = True
+
+def reset():
+    st.session_state.avaliar = False
+    st.session_state.reset += 1
+
+# Botões de ação
+st.sidebar.button("Avaliar currículos", on_click=start)
+st.sidebar.button("Fazer nova avaliação", on_click=reset)
+
+# CSS customizado para cores dos botões
+st.markdown(
+    """
+    <style>
+    div.stButton:nth-of-type(1) > button { background-color: green !important; color: white !important; }
+    div.stButton:nth-of-type(2) > button { background-color: blue !important; color: white !important; }
+    </style>
+    """, unsafe_allow_html=True
+)
+
+# Lógica de avaliação
+if st.session_state.avaliar:
+    if not job_file or not candidate_files:
+        st.warning("Envie todos os arquivos no sidebar antes de avaliar.")
     else:
-        st.warning("Nenhum candidato válido foi encontrado.")
-    errors = [r for r in results if r.get("error")]
-    if errors:
-        st.error("Erros ao processar alguns currículos:")
-        for err in errors:
-            st.write(f"- {err['candidate']}: {err['error']}")
+        with st.spinner("Analisando..."):
+            job_text = extract_docx(job_file)
+            requisitos = []
+            for line in job_text.splitlines():
+                t = line.strip()
+                m1 = re.match(r'^[\-\u2022\*]\s*(.+)', t)
+                m2 = re.match(r'^\d+[\.)]\s*(.+)', t)
+                if m1:
+                    requisitos.append(m1.group(1).strip())
+                elif m2:
+                    requisitos.append(m2.group(1).strip())
+            total_req = len(requisitos)
+
+            results = []
+            for pdf in candidate_files:
+                resume_text = extract_pdf(pdf).lower()
+                matched_count = 0
+                matched_details = []
+                for req in requisitos:
+                    ok, kws = match_requirement(req, resume_text)
+                    if ok:
+                        matched_count += 1
+                        matched_details.append((req, kws))
+                score = (matched_count / total_req * 100) if total_req else 0
+                results.append({
+                    'name': pdf.name,
+                    'matched': matched_count,
+                    'total': total_req,
+                    'score': score,
+                    'details': matched_details
+                })
+            top3 = sorted(results, key=lambda x: x['score'], reverse=True)[:3]
+
+        # Mostrar cards
+        cols = st.columns(3)
+        for idx, cand in enumerate(top3):
+            with cols[idx]:
+                st.markdown("<div class='card'>", unsafe_allow_html=True)
+                st.subheader(f"{idx+1}. {cand['name']}")
+                st.metric("Score", f"{cand['score']:.0f}%")
+                st.write(f"Atendeu {cand['matched']}/{cand['total']} requisitos")
+                exp = st.expander("Ver requisitos atendidos")
+                for req, kws in cand['details']:
+                    exp.write(f"- **{req}**")
+                    exp.write(f"  - Keywords: {', '.join(kws)}")
+                st.markdown("</div>", unsafe_allow_html=True)
 else:
-    st.info("Carregue a descrição da vaga e pelo menos um currículo para iniciar a análise.")
+    st.info("Use o menu lateral para enviar arquivos e iniciar a avaliação.")
