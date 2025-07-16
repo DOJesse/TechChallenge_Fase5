@@ -16,3 +16,35 @@ services:
       - "8502:8501"
     depends_on:
       - api
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yaml
+    ports:
+      - "9090:9090"
+    networks:
+      - monitoring
+
+  grafana:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.grafana    
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "admin" 
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    driver: bridge
+
+volumes:
+  # opcional, para persistir dados do Grafana
+  grafana-data:
+    name: grafana-data
