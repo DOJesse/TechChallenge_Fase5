@@ -9,7 +9,10 @@ from gensim.models import KeyedVectors
 from typing import Dict, Any
 
 # Importa as funções de pré-processamento do seu arquivo de utilitários
-import models.utils as utils
+try:
+    import models.utils as utils
+except ImportError:
+    from src.models import utils
 
 
 class PredictionPipeline:
@@ -33,9 +36,19 @@ class PredictionPipeline:
         self.model = joblib.load(model_path)
 
         # Carrega os artefatos de pré-processamento
-        artifacts = joblib.load(artifacts_path)
-        self.ordinal_encoders = artifacts.get('ordinal_encoders', {})
-        self.model_features_order = artifacts.get('model_features', [])
+        try:
+            artifacts = joblib.load(artifacts_path)
+            if isinstance(artifacts, dict):
+                self.ordinal_encoders = artifacts.get('ordinal_encoders', {})
+                self.model_features_order = artifacts.get('model_features', [])
+            else:
+                print("Aviso: Artefatos corrompidos, usando valores padrão")
+                self.ordinal_encoders = {}
+                self.model_features_order = []
+        except Exception as e:
+            print(f"Erro ao carregar artefatos: {e}, usando valores padrão")
+            self.ordinal_encoders = {}
+            self.model_features_order = []
         #self.tipos_contratacao = artifacts.get('tipos_contratacao', set())
 
         # Carrega o modelo Word2Vec

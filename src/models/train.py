@@ -8,7 +8,10 @@ from gensim.models import KeyedVectors
 from sklearn.model_selection import train_test_split
 from xgboost import XGBRegressor
 
-import models.utils as utils
+try:
+    import models.utils as utils
+except ImportError:
+    from src.models import utils
 # %%
 # ---
 # carrega de dados e modelo word2vec pré-treinado
