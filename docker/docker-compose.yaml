@@ -5,6 +5,8 @@ services:
       dockerfile: docker/Dockerfile.api
     ports:
       - "8080:8080"
+    networks:
+      - monitoring
 
   ui:
     build:
@@ -16,10 +18,18 @@ services:
       - "8502:8501"
     depends_on:
       - api
+    networks:
+      - monitoring
 
   prometheus:
     image: prom/prometheus
     container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yaml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
     volumes:
       - ./prometheus.yaml:/etc/prometheus/prometheus.yaml
     ports:
@@ -35,6 +45,8 @@ services:
       - "3000:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: "admin" 
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
     depends_on:
       - prometheus
     networks:

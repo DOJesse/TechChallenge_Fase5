@@ -1,6 +1,8 @@
 import os
 import re
 import streamlit as st
+import requests
+import json
 from docx import Document
 import PyPDF2
 
@@ -53,6 +55,9 @@ def extract_pdf(uploaded_pdf):
     reader = PyPDF2.PdfReader(uploaded_pdf)
     return "\n".join(page.extract_text() or "" for page in reader.pages)
 
+# API Configuration
+API_URL = os.getenv("API_URL", "http://api:8080")
+
 # Stopwords e matching
 STOPWORDS = set(['e','ou','com','para','dos','das','de','a','o','as','os','que','em','um','uma'])
 def extract_keywords(req: str):
@@ -62,6 +67,23 @@ def match_requirement(req: str, resume: str):
     kws = extract_keywords(req)
     matched = [w for w in kws if w in resume]
     return (len(matched) >= len(kws) / 2 if kws else False, matched)
+
+def call_api_prediction(resume_text: str, job_text: str):
+    """Chama a API Flask para gerar predição e métricas"""
+    try:
+        payload = {
+            "resume": {"text": resume_text},
+            "job": {"text": job_text}
+        }
+        response = requests.post(f"{API_URL}/predict_raw", json=payload, timeout=30)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            st.error(f"Erro na API: {response.status_code}")
+            return None
+    except Exception as e:
+        st.error(f"Erro ao conectar com API: {e}")
+        return None
 
 # Sidebar Inputs
 st.sidebar.header("Configuração")
@@ -112,22 +134,36 @@ if st.session_state.avaliar:
 
             results = []
             for pdf in candidate_files:
-                resume_text = extract_pdf(pdf).lower()
+                resume_text = extract_pdf(pdf)
+                
+                # Chama a API Flask para gerar métricas de inferência
+                api_result = call_api_prediction(resume_text, job_text)
+                
+                # Continua com lógica original para interface
+                resume_text_lower = resume_text.lower()
                 matched_count = 0
                 matched_details = []
                 for req in requisitos:
-                    ok, kws = match_requirement(req, resume_text)
+                    ok, kws = match_requirement(req, resume_text_lower)
                     if ok:
                         matched_count += 1
                         matched_details.append((req, kws))
                 score = (matched_count / total_req * 100) if total_req else 0
-                results.append({
+                
+                result_data = {
                     'name': pdf.name,
                     'matched': matched_count,
                     'total': total_req,
                     'score': score,
                     'details': matched_details
-                })
+                }
+                
+                # Adiciona predição da API se disponível
+                if api_result:
+                    result_data['api_prediction'] = api_result.get('prediction', 'N/A')
+                    result_data['api_probabilities'] = api_result.get('probabilities', [])
+                
+                results.append(result_data)
             top3 = sorted(results, key=lambda x: x['score'], reverse=True)[:3]
 
         # Mostrar cards
