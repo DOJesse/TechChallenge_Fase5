@@ -3,10 +3,14 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Copia só o requirements da API
-COPY src/app/requirements.txt .
 
-RUN pip install --no-cache-dir -r requirements.txt
+
+# Copia só o requirements-prod da API
+COPY src/app/requirements-prod.txt .
+
+# Instala o git para dependências via git no requirements-prod.txt
+RUN apt-get update && apt-get install -y git gcc && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir -r requirements-prod.txt
 
 # Copia todo o código da pasta src (app + features)
 COPY src src

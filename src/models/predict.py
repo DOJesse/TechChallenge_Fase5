@@ -1,5 +1,3 @@
-# predict.py
-
 import pandas as pd
 import numpy as np
 import joblib
@@ -8,13 +6,10 @@ import unicodedata
 from gensim.models import KeyedVectors
 from pathlib import Path
 from typing import Dict, Any
+import shap
 
 # Importa as funções de pré-processamento do seu arquivo de utilitários
-try:
-    import models.utils as utils
-except ImportError:
-    from src.models import utils
-
+from src.models import utils
 
 class PredictionPipeline:
     """
@@ -34,7 +29,11 @@ class PredictionPipeline:
         print("Inicializando o pipeline de predição...")
 
         # Carrega o modelo de machine learning
-        self.model = joblib.load(model_path)
+        try:
+            self.model = joblib.load(model_path)
+        except Exception as e:
+            print(f"Erro ao carregar o modelo: {e}")
+            raise
 
         # Carrega os artefatos de pré-processamento
         try:
@@ -68,87 +67,57 @@ class PredictionPipeline:
         df_vagas = pd.DataFrame.from_dict(vacancy_data, orient='index')
 
         # ---
-        # 1. Normalização dos dicionários
+        # 1. Normalização dos dicionários (com tratamento de chaves ausentes)
         # ---
-        df_infos_basicas = pd.json_normalize(
-            df_applicants['infos_basicas']
-        )
-        df_informacoes_pessoais = pd.json_normalize(
-            df_applicants['informacoes_pessoais']
-        )
-        df_informacoes_profissionais = pd.json_normalize(
-            df_applicants['informacoes_profissionais']
-        )
-        df_formacao_e_idiomas = pd.json_normalize(
-            df_applicants['formacao_e_idiomas']
-        )
-        df_cargo_atual = pd.json_normalize(
-            df_applicants['cargo_atual']
-        )
+        def safe_json_normalize(df, key_or_keys):
+            """Normaliza um campo JSON se a chave existir, senão retorna um DF vazio."""
+            keys = [key_or_keys] if isinstance(key_or_keys, str) else key_or_keys
+            
+            key_to_use = None
+            for key in keys:
+                if key in df.columns:
+                    key_to_use = key
+                    break
+            
+            if key_to_use:
+                # Garante que a coluna contenha dicionários, substituindo nulos/outros por dict vazio
+                data_series = df[key_to_use].apply(lambda x: x if isinstance(x, dict) else {})
+                return pd.json_normalize(data_series), key_to_use
+            
+            return pd.DataFrame(), None
+
+        df_infos_basicas, used_key_infos = safe_json_normalize(df_applicants, ['infos_basicas', 'informacoes_basicas'])
+        df_informacoes_pessoais, used_key_pessoais = safe_json_normalize(df_applicants, 'informacoes_pessoais')
+        df_informacoes_profissionais, used_key_profissionais = safe_json_normalize(df_applicants, 'informacoes_profissionais')
+        df_formacao_e_idiomas, used_key_formacao = safe_json_normalize(df_applicants, 'formacao_e_idiomas')
+        df_cargo_atual, used_key_cargo = safe_json_normalize(df_applicants, 'cargo_atual')
+
+        # Coleta as chaves que foram usadas para poder removê-las
+        keys_to_drop_cand = [k for k in [used_key_infos, used_key_pessoais, used_key_profissionais, used_key_formacao, used_key_cargo] if k]
 
         df_applicants = pd.concat(
             [
-                df_applicants.drop('infos_basicas', axis=1),
-                df_infos_basicas
-            ],
-            axis=1
-        )
-        df_applicants = pd.concat(
-            [
-                df_applicants.drop('informacoes_pessoais', axis=1),
-                df_informacoes_pessoais
-            ],
-            axis=1
-        )
-        df_applicants = pd.concat(
-            [
-                df_applicants.drop('informacoes_profissionais', axis=1),
-                df_informacoes_profissionais
-            ],
-            axis=1
-        )
-        df_applicants = pd.concat(
-            [
-                df_applicants.drop('formacao_e_idiomas', axis=1),
-                df_formacao_e_idiomas
-            ],
-            axis=1
-        )
-        df_applicants = pd.concat(
-            [
-                df_applicants.drop('cargo_atual', axis=1),
+                df_applicants.drop(columns=keys_to_drop_cand, errors='ignore'),
+                df_infos_basicas,
+                df_informacoes_pessoais,
+                df_informacoes_profissionais,
+                df_formacao_e_idiomas,
                 df_cargo_atual
             ],
             axis=1
         )
 
-        df_informacoes_basicas = pd.json_normalize(
-            df_vagas['informacoes_basicas']
-        )
-        df_perfil_vaga = pd.json_normalize(
-            df_vagas['perfil_vaga']
-        )
-        df_beneficios = pd.json_normalize(
-            df_vagas['beneficios']
-        )
+        df_informacoes_basicas_vaga, used_key_vaga_basicas = safe_json_normalize(df_vagas, 'informacoes_basicas')
+        df_perfil_vaga, used_key_vaga_perfil = safe_json_normalize(df_vagas, 'perfil_vaga')
+        df_beneficios, used_key_vaga_beneficios = safe_json_normalize(df_vagas, 'beneficios')
+        
+        keys_to_drop_vaga = [k for k in [used_key_vaga_basicas, used_key_vaga_perfil, used_key_vaga_beneficios] if k]
 
         df_vagas = pd.concat(
             [
-                df_vagas.drop('informacoes_basicas', axis=1),
-                df_informacoes_basicas
-            ],
-            axis=1
-        )
-        df_vagas = pd.concat(
-            [
-                df_vagas.drop('perfil_vaga', axis=1),
-                df_perfil_vaga
-            ],
-            axis=1
-        )
-        df_vagas = pd.concat(
-            [
-                df_vagas.drop('beneficios', axis=1),
+                df_vagas.drop(columns=keys_to_drop_vaga, errors='ignore'),
+                df_informacoes_basicas_vaga,
+                df_perfil_vaga,
                 df_beneficios
             ],
             axis=1
@@ -157,6 +126,27 @@ class PredictionPipeline:
         # ---
         # 2. Filtragem de features
         # ---
+        # Garante que todas as colunas esperadas existam, preenchendo com um valor padrão (vazio) se não existirem
+        all_expected_cand_features = [
+            'pcd', 'objetivo_profissional', 'area_atuacao', 'conhecimentos_tecnicos', 
+            'certificacoes', 'outras_certificacoes', 'nivel_academico', 'nivel_ingles', 
+            'nivel_espanhol', 'outro_idioma', 'cursos', 'cargo_atual', 'data_admissao', 
+            'data_ultima_promocao', 'cv_pt'
+        ]
+        for col in all_expected_cand_features:
+            if col not in df_applicants.columns:
+                df_applicants[col] = '' # ou np.nan, dependendo do tratamento downstream
+
+        all_expected_vaga_features = [
+            'titulo_vaga', 'vaga_sap', 'cliente', 'solicitante_cliente',
+            'tipo_contratacao', 'vaga_especifica_para_pcd', 'nivel profissional', 
+            'nivel_academico', 'nivel_ingles', 'nivel_espanhol', 'outro_idioma', 
+            'areas_atuacao', 'principais_atividades', 'competencia_tecnicas_e_comportamentais'
+        ]
+        for col in all_expected_vaga_features:
+            if col not in df_vagas.columns:
+                df_vagas[col] = '' # ou np.nan
+
         features_vagas = ['titulo_vaga', 'vaga_sap', 'cliente', 'solicitante_cliente',
                           'tipo_contratacao', 'vaga_especifica_para_pcd',
                           'nivel profissional', 'nivel_academico', 'nivel_ingles',
@@ -380,6 +370,16 @@ class PredictionPipeline:
             >= df_final['nivel_academico_encoded_vaga_vaga']
         ).astype(int)
 
+        df_final['possui_nivel_ingles_minimo'] = (
+            df_final['nivel_ingles_encoded_cand_cand']
+            >= df_final['nivel_ingles_encoded_vaga_vaga']
+        ).astype(int)
+
+        df_final['possui_nivel_espanhol_minimo'] = (
+            df_final['nivel_espanhol_encoded_cand_cand']
+            >= df_final['nivel_espanhol_encoded_vaga_vaga']
+        ).astype(int)
+
         # similaridade para features binárias
         condicoes = [
             (
@@ -416,11 +416,23 @@ class PredictionPipeline:
         """
         # Prepara os dados usando a pipeline interna
         processed_df = self._prepare_data(candidate_data, vacancy_data)
-        print("Features sent to model:")
-        print(processed_df)
         # Faz a predição
         prediction = self.model.predict(processed_df)
         
+        explainer = shap.TreeExplainer(self.model)
+
+        # Pegue a linha de dados do candidato/vaga que você quer analisar
+        # Supondo que 'processed_df' seja o DataFrame com os dados prontos para predição
+        dados_para_explicar = processed_df.iloc[[0]] 
+
+        # Calcule os valores SHAP
+        shap_values = explainer.shap_values(dados_para_explicar)
+
+        # Visualize a contribuição de cada feature
+        plot = shap.force_plot(explainer.expected_value, shap_values[0], processed_df.iloc[0], show=False)
+            
+        # Salva o plot em um arquivo HTML
+        shap.save_html('shap_plot.html', plot)
         # Retorna o score (o [0] pega o primeiro valor do array de predição)
         return prediction[0]
 
@@ -430,8 +442,8 @@ if __name__ == '__main__':
     PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
     
     # Caminhos para os artefatos salvos na pasta 'artifacts'
-    MODEL_PATH = PROJECT_ROOT / 'artifacts' / 'model.joblib'
-    ARTIFACTS_PATH = PROJECT_ROOT / 'artifacts' / 'preprocessing_artifacts.joblib'
+    MODEL_PATH = PROJECT_ROOT / 'src' / 'models' / 'artifacts' / 'model.joblib'
+    ARTIFACTS_PATH = PROJECT_ROOT / 'src' / 'models' / 'artifacts' / 'preprocessing_artifacts.joblib'
     W2V_MODEL_PATH = PROJECT_ROOT / 'src' / 'word2vec' / 'cbow_s100.txt'
 
     # 1. Inicializa a pipeline (carrega os modelos e artefatos em memória)
@@ -442,6 +454,57 @@ if __name__ == '__main__':
     )
 
     # 2. Define os dados de entrada (exemplo)
+    nova_vaga = {
+        "4546": {
+        "informacoes_basicas": {
+            "data_requicisao": "11-03-2021",
+            "limite_esperado_para_contratacao": "00-00-0000",
+            "titulo_vaga": "Java SR, PL -2021-2602800",
+            "vaga_sap": "Não",
+            "cliente": "Gonzalez and Sons",
+            "solicitante_cliente": "Valentim Duarte",
+            "empresa_divisao": "Decision São Paulo",
+            "requisitante": "Vitória Melo",
+            "analista_responsavel": "Ana Camargo",
+            "tipo_contratacao": "PJ/Autônomo",
+            "prazo_contratacao": "",
+            "objetivo_vaga": "Contratação",
+            "prioridade_vaga": "Média: Média complexidade 6 a 10 dias",
+            "origem_vaga": "Nova Posição",
+            "superior_imediato": "Superior Imediato:",
+            "nome": "",
+            "telefone": ""
+        },
+        "perfil_vaga": {
+            "pais": "Brasil",
+            "estado": "São Paulo",
+            "cidade": "São Paulo",
+            "bairro": "",
+            "regiao": "",
+            "local_trabalho": "2000",
+            "vaga_especifica_para_pcd": "Não",
+            "faixa_etaria": "De: Até:",
+            "horario_trabalho": "",
+            "nivel profissional": "Especialista",
+            "nivel_academico": "Doutorado Completo",
+            "nivel_ingles": "Avançado",
+            "nivel_espanhol": "Nenhum",
+            "outro_idioma": "",
+            "areas_atuacao": "Financeira/Controladoria-",
+            "principais_atividades": "Conhecimentos: Java, Spring boot, API Rest, AngularJs, Jquery, JavaScript, Css, Html5 , Jira, Confluence, Kafka, Cassandra, AWS, esteira devops (Jenkins).\nConhecimento em Metodologia Ágil.\nConhecimento Ambiente Itaú.\n\nKey skills required for the job are:\n\nCore Java-L3 (Mandatory)\nJavaScript-L3\nHTML 5-L3\n\nAs a Domain Consultant in one of the industry verticals, you are responsible for implementation of roadmaps for business process analysis, data analysis, diagnosis of gaps, business requirements and functional definitions, best practices application, meeting facilitation, and contributes to projectplanning. You are expected to contribute to solution building for the client and practice. Should be able to handle higher scale and complexity and proactive in client interactions.\n\nMinimum work experience:5 - 8 Years\n\nProficiency in English Language is Desirable",
+            "competencia_tecnicas_e_comportamentais": "Conhecimentos: Java, Spring boot, API Rest, AngularJs, Jquery, JavaScript, Css, Html5 , Jira, Confluence, Kafka, Cassandra, AWS, esteira devops (Jenkins).\nConhecimento em Metodologia Ágil.\nConhecimento Ambiente Itaú.",
+            "habilidades_comportamentais_necessarias": "Remoto,",
+            "demais_observacoes": "",
+            "viagens_requeridas": ""
+        },
+        "beneficios": {
+            "valor_venda": "93,00 -",
+            "valor_compra_1": "hora",
+            "valor_compra_2": ""
+        }
+    }
+    }
+
     novo_candidato = {
         "31001": {
             "infos_basicas": {
@@ -476,28 +539,28 @@ if __name__ == '__main__':
             "facebook": ""
             },
             "informacoes_profissionais": {
-            "titulo_profissional": "Analista de Dados Sênior",
+            "titulo_profissional": "Analista de Dados Júnior",
             "area_atuacao": "Tecnologia da Informação",
-            "conhecimentos_tecnicos": "python, SQL, Power BI, Machine Learning, Git",
+            "conhecimentos_tecnicos": "Javascript, React, SQL, Python, HTML, CSS, Metodologias Ágeis",
             "certificacoes": "Certificação React Developer",
             "outras_certificacoes": "Scrum Master",
             "remuneracao": "A combinar",
-            "nivel_profissional": "Sênior"
+            "nivel_profissional": "Júnior"
             },
             "formacao_e_idiomas": {
-            "nivel_academico": "Ensino Superior Completo",
+            "nivel_academico": "Graduação Completo",
             "instituicao_ensino_superior": "Universidade Paulista",
             "cursos": "Ciência da Computação",
             "ano_conclusao": "0",
-            "nivel_ingles": "Fluente",
-            "nivel_espanhol": "Intermediário",
+            "nivel_ingles": "Nenhum",
+            "nivel_espanhol": "Básico",
             "outro_idioma": "Francês - Básico",
             "outro_curso": "Outro Curso:"
             },
             "cargo_atual":  {
             "id_ibrati": "51819",
             "email_corporativo": "",
-            "cargo_atual": "Analista de Dados II",
+            "cargo_atual": "Analista de Projetos I",
             "projeto_atual": "",
             "cliente": "DECISION IBM 15 07",
             "unidade": "Decision São Paulo",
@@ -511,60 +574,9 @@ if __name__ == '__main__':
         }
     }
 
-    nova_vaga = {
-        "5186": {
-            "informacoes_basicas": {
-            "data_requicisao": "10-07-2024",
-            "limite_esperado_para_contratacao": "30-09-2024",
-            "titulo_vaga": "Analista de Dados Sênior",
-            "vaga_sap": "Sim",
-            "cliente": "Global Analytics Inc.",
-            "solicitante_cliente": "Dr. Lucas Martins",
-            "empresa_divisao": "Insights Solutions Brasil",
-            "requisitante": "Fernanda Costa",
-            "analista_responsavel": "Sr. Gabriel Mendes",
-            "tipo_contratacao": "PJ",
-            "prazo_contratacao": "1 ano",
-            "objetivo_vaga": "Fortalecer a equipe de dados com expertise em análise avançada.",
-            "prioridade_vaga": "Alta",
-            "origem_vaga": "Website Corporativo",
-            "superior_imediato": "Gerente de Análise de Dados",
-            "nome": "Sofia Almeida",
-            "telefone": "(11) 99876-5432"
-            },
-            "perfil_vaga": {
-            "pais": "Brasil",
-            "estado": "São Paulo",
-            "cidade": "São Paulo",
-            "bairro": "Pinheiros",
-            "regiao": "Zona Oeste",
-            "local_trabalho": "Híbrido (3 dias presencial)",
-            "vaga_especifica_para_pcd": "Não",
-            "faixa_etaria": "De: 28 Até: 45",
-            "horario_trabalho": "Comercial (09h - 18h)",
-            "nivel profissional": "Sênior",
-            "nivel_academico": "Pós graduação Completo",
-            "nivel_ingles": "Fluente",
-            "nivel_espanhol": "Intermediário",
-            "outro_idioma": "Alemão - Básico",
-            "areas_atuacao": "Tecnologia - Análise de Dados",
-            "principais_atividades": "• Desenvolver e implementar modelos de dados complexos.\n• Realizar análises estatísticas e preditivas para identificar tendências e padrões.\n• Criar dashboards e relatórios interativos utilizando ferramentas de BI.\n• Colaborar com equipes de produto e engenharia para definir requisitos de dados.\n• Apresentar insights e recomendações para stakeholders.\n• Otimizar pipelines de dados e garantir a qualidade dos dados.",
-            "competencia_tecnicas_e_comportamentais": "Required Skills:\n• Experiência comprovada com SQL, Python (bibliotecas Pandas, NumPy, Scikit-learn) e R.\n• Proficiência em ferramentas de BI como Tableau, Power BI ou Looker.\n• Conhecimento em bancos de dados relacionais e não relacionais (SQL Server, PostgreSQL, MongoDB).\n• Familiaridade com ambientes de nuvem (AWS, Azure, GCP) e big data (Spark, Hadoop).\n• Habilidades analíticas e de resolução de problemas.\n• Forte comunicação e capacidade de trabalhar em equipe.",
-            "demais_observacoes": "Ambiente de trabalho dinâmico e focado em inovação. Oportunidade de atuação em projetos estratégicos com impacto global.",
-            "viagens_requeridas": "Ocasionais para eventos ou reuniões de equipe.",
-            "equipamentos_necessarios": "Notebook de alta performance fornecido pela empresa."
-            },
-            "beneficios": {
-            "valor_venda": "15000",
-            "valor_compra_1": "R$ 12000",
-            "valor_compra_2": "R$ 13000"
-            }
-        }
-    }
-
     # 3. Faz a predição
     score = pipeline.predict(candidate_data=novo_candidato, vacancy_data=nova_vaga)
 
-    print("\\n" + "="*30)
+    print("\n" + "="*30)
     print(f"  Score de Match Predito: {score:.4f}")
     print("="*30)

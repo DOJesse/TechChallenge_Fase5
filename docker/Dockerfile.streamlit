@@ -2,11 +2,13 @@
 FROM python:3.10-slim
 WORKDIR /app
 
-# Copia o requirements.txt da pasta src/app para /app/requirements.txt
-COPY src/app/requirements.txt .
 
-# Instala as deps
-RUN pip install --no-cache-dir -r requirements.txt
+# Copia o requirements-prod.txt da pasta src/app para /app/requirements-prod.txt
+COPY src/app/requirements-prod.txt .
+
+# Instala dependências do sistema e as deps Python
+RUN apt-get update && apt-get install -y git gcc && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir -r requirements-prod.txt
 
 # Copia todo o código da raiz para /app
 COPY . .

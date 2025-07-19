@@ -72,10 +72,10 @@ def call_api_prediction(resume_text: str, job_text: str):
     """Chama a API Flask para gerar predição e métricas"""
     try:
         payload = {
-            "resume": {"text": resume_text},
-            "job": {"text": job_text}
+            "candidate": {"31001": {"cv_pt": resume_text}},
+            "vacancy": {"5186": {"infos_basicas": {"titulo_vaga": job_text}}}
         }
-        response = requests.post(f"{API_URL}/predict_raw", json=payload, timeout=30)
+        response = requests.post(f"{API_URL}/predict", json=payload, timeout=30)
         if response.status_code == 200:
             return response.json()
         else:
@@ -104,12 +104,19 @@ def reset():
 st.sidebar.button("Avaliar currículos", on_click=start)
 st.sidebar.button("Fazer nova avaliação", on_click=reset)
 
-# CSS customizado para cores dos botões
+# CSS customizado para cores dos botões e Score
 st.markdown(
     """
     <style>
     div.stButton:nth-of-type(1) > button { background-color: green !important; color: white !important; }
     div.stButton:nth-of-type(2) > button { background-color: blue !important; color: white !important; }
+    /* Score metric value e label em preto */
+    div[data-testid="stMetric"] > div > div:nth-child(1) {
+        color: #111 !important;
+    }
+    div[data-testid="stMetric"] label, div[data-testid="stMetric"] > div > div:nth-child(2) {
+        color: #111 !important;
+    }
     </style>
     """, unsafe_allow_html=True
 )
@@ -135,10 +142,11 @@ if st.session_state.avaliar:
             results = []
             for pdf in candidate_files:
                 resume_text = extract_pdf(pdf)
-                
+                if not resume_text.strip() or not job_text.strip():
+                    st.warning(f"Arquivo '{pdf.name}' ou descrição da vaga está vazia. Não foi possível avaliar este currículo.")
+                    continue
                 # Chama a API Flask para gerar métricas de inferência
                 api_result = call_api_prediction(resume_text, job_text)
-                
                 # Continua com lógica original para interface
                 resume_text_lower = resume_text.lower()
                 matched_count = 0
@@ -149,7 +157,6 @@ if st.session_state.avaliar:
                         matched_count += 1
                         matched_details.append((req, kws))
                 score = (matched_count / total_req * 100) if total_req else 0
-                
                 result_data = {
                     'name': pdf.name,
                     'matched': matched_count,
@@ -157,12 +164,10 @@ if st.session_state.avaliar:
                     'score': score,
                     'details': matched_details
                 }
-                
                 # Adiciona predição da API se disponível
                 if api_result:
                     result_data['api_prediction'] = api_result.get('prediction', 'N/A')
                     result_data['api_probabilities'] = api_result.get('probabilities', [])
-                
                 results.append(result_data)
             top3 = sorted(results, key=lambda x: x['score'], reverse=True)[:3]
 
@@ -180,4 +185,8 @@ if st.session_state.avaliar:
                     exp.write(f"  - Keywords: {', '.join(kws)}")
                 st.markdown("</div>", unsafe_allow_html=True)
 else:
-    st.info("Use o menu lateral para enviar arquivos e iniciar a avaliação.")
+    st.markdown("""
+        <div style='color:#0a2342; font-size:1.1em; font-weight:600; margin-top:2em;'>
+            Use o menu lateral para enviar arquivos e iniciar a avaliação.
+        </div>
+    """, unsafe_allow_html=True)

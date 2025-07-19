@@ -1,4 +1,3 @@
-# %%
 import pandas as pd
 import numpy as np
 import joblib
@@ -9,8 +8,9 @@ import yaml
 from gensim.models import KeyedVectors
 from sklearn.model_selection import train_test_split
 from xgboost import XGBRegressor
+from sklearn.metrics import mean_squared_error, mean_absolute_error
 
-from . import utils
+import utils
 # %%
 # ---
 # carrega de dados e modelo word2vec pré-treinado
@@ -20,9 +20,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 CONFIG_PATH = PROJECT_ROOT / 'config.yaml'
 W2V_MODEL_PATH = PROJECT_ROOT / 'src' / 'word2vec' / 'cbow_s100.txt'
-APPLICANTS_PATH = PROJECT_ROOT / 'data' / 'applicants.json'
-PROSPECTS_PATH = PROJECT_ROOT / 'data' / 'prospects.json'
-VAGAS_PATH = PROJECT_ROOT / 'data' / 'vagas.json'
+APPLICANTS_PATH = PROJECT_ROOT / 'src' / 'data' / 'applicants.json'
+PROSPECTS_PATH = PROJECT_ROOT / 'src' / 'data' / 'prospects.json'
+VAGAS_PATH = PROJECT_ROOT / 'src' / 'data' / 'vagas.json'
 
 OUTPUT_DIR = PROJECT_ROOT / 'artifacts'
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -286,29 +286,29 @@ mapeamento_situacao_candidato = {
         '': 0.0,  # Para NaN ou vazio, representando sem informação/sem match
         'desistiu': 0.0,
         'recusado': 0.0,
-        'nao aprovado pelo cliente': 0.0,
-        'nao aprovado pelo rh': 0.0,
-        'nao aprovado pelo requisitante': 0.0,
-        'desistiu da contratacao': 0.0,
+        'não aprovado pelo cliente': 0.4,
+        'não aprovado pelo rh': 0.0,
+        'não aprovado pelo requisitante': 0.4,
+        'desistiu da contratacao': 0.7,
         'sem interesse nesta vaga': 0.0,
 
         # Estágios Iniciais / Baixo Progresso
         'prospect': 0.1,  # Estágio inicial, antes de 'Inscrito'
         'inscrito': 0.15,  # Candidato apenas aplicou
-        'em avaliacao pelo rh': 0.2,  # Triagem inicial
+        'em avaliação pelo rh': 0.2,  # Triagem inicial
 
         # Estágios Intermediários
         'encaminhado ao requisitante': 0.4,  # Passou da triagem inicial
-        'entrevista tecnica': 0.5,
+        'entrevista tcnica': 0.5,
         'entrevista com cliente': 0.6,  # Ponto chave!
 
         # Estágios Finais / Alta Probabilidade de Match
         'aprovado': 0.7,  # Aprovado internamente ou em alguma etapa chave
         'encaminhar proposta': 0.8,
         'proposta aceita': 0.9,
-        'documentacao clt': 0.92,  # Ultimos passos, quase lá
-        'documentacao pj': 0.92,
-        'documentacao cooperado': 0.92,
+        'documentação clt': 0.92,  # Ultimos passos, quase lá
+        'documentação pj': 0.92,
+        'documentação cooperado': 0.92,
 
         # Estágios de Sucesso (match bem-sucedido)
         'contratado pela decision': 1.0,
@@ -322,6 +322,7 @@ df_prospects['situacao_candidado'] = (
     .str.strip()
     .replace('nan', '')
 )
+print(df_prospects['situacao_candidado'].unique())
 df_prospects['target_var'] = (
     df_prospects['situacao_candidado']
     .map(mapeamento_situacao_candidato)
@@ -347,6 +348,43 @@ df_merged = pd.merge(df_merged,
                      on='id_vaga',
                      how='left'
                      )
+
+# Removendo casos com target_var == 0.1
+df_merged = df_merged[df_merged['target_var'] != 0.1]
+
+# %% 
+# ---
+# Criação dos embeddings dos campos texto
+# ---
+target_counts = pd.Series({
+    0.00: 7635, 
+    0.15: 3980,
+    0.20: 375,
+    0.40: 20379,
+    0.60: 469,
+    0.70: 209,
+    0.80: 2,
+    0.90: 1,
+    0.92: 9,
+    1.00: 2984
+})
+
+# Calcular o peso inverso da frequência para cada score
+total_samples = target_counts.sum()
+num_unique_scores = target_counts.shape[0]
+
+# Calcular pesos de forma que scores mais raros tenham pesos maiores
+weights_dict = {}
+for score_value, count in target_counts.items():
+    # Evitar divisão por zero se count for 0 (embora aqui não seja o caso)
+    weights_dict[score_value] = total_samples / count if count > 0 else 0
+
+# Normalizar os pesos para que a escala seja mais razoável
+min_weight = min(w for w in weights_dict.values() if w > 0)
+normalized_weights_dict = {k: v / min_weight for k, v in weights_dict.items()}
+
+# Para aplicar no seu DataFrame (df_treino_final):
+sample_weights_series = df_merged['target_var'].map(normalized_weights_dict)
 
 # %%
 # ---
@@ -464,6 +502,16 @@ df_final['possui_nivel_academico_minimo'] = (
     >= df_final['nivel_academico_encoded_vaga']
 ).astype(int)
 
+df_final['possui_nivel_ingles_minimo'] = (
+    df_final['nivel_ingles_encoded_cand']
+    >= df_final['nivel_ingles_encoded_vaga']
+).astype(int)
+
+df_final['possui_nivel_espanhol_minimo'] = (
+    df_final['nivel_espanhol_encoded_cand']
+    >= df_final['nivel_espanhol_encoded_vaga']
+).astype(int)
+
 # similaridade para features binárias
 condicoes = [
     (
@@ -498,7 +546,15 @@ X_train, X_test, y_train, y_test = train_test_split(X,
 
 model = XGBRegressor(**config['model_params']['xgbregressor'])
 
-utils.evaluation(model, X_train, y_train, X_test, y_test)
+model.fit(X_train, y_train, sample_weight=sample_weights_series.loc[X_train.index])
+y_pred = model.predict(X_test)
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
+mae = mean_absolute_error(y_test, y_pred)
+
+print(f'MSE: {mse}\nRMSE: {rmse}\nMAE: {mae}')
+
+#utils.evaluation(model, X_train, y_train, X_test, y_test)
 
 # %%
 # Salvando Artefatos para Produção
