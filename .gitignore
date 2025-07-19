@@ -9,6 +9,7 @@ __pycache__/
 # Arquivos de dados para treino muito grandes
 *.json
 cbow_s50.txt
+cbow_s100.txt
 *.kv
 *.npy
 

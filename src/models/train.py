@@ -4,24 +4,37 @@ import numpy as np
 import joblib
 import re
 import unicodedata
+from pathlib import Path
+import yaml
 from gensim.models import KeyedVectors
 from sklearn.model_selection import train_test_split
 from xgboost import XGBRegressor
 
-try:
-    import models.utils as utils
-except ImportError:
-    from src.models import utils
+from . import utils
 # %%
 # ---
 # carrega de dados e modelo word2vec pré-treinado
 # ---
-model_word2vec = KeyedVectors.load_word2vec_format(
-    'src/word2vec/cbow_s100.txt'
-)
-df_applicants = pd.read_json('src/data/applicants.json', orient='index')
-df_prospects = pd.read_json('src/data/prospects.json', orient='index')
-df_vagas = pd.read_json('src/data/vagas.json', orient='index')
+# Define caminhos de forma robusta, independentemente de onde o script é executado
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+CONFIG_PATH = PROJECT_ROOT / 'config.yaml'
+W2V_MODEL_PATH = PROJECT_ROOT / 'src' / 'word2vec' / 'cbow_s100.txt'
+APPLICANTS_PATH = PROJECT_ROOT / 'data' / 'applicants.json'
+PROSPECTS_PATH = PROJECT_ROOT / 'data' / 'prospects.json'
+VAGAS_PATH = PROJECT_ROOT / 'data' / 'vagas.json'
+
+OUTPUT_DIR = PROJECT_ROOT / 'artifacts'
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# Carrega as configurações
+with open(CONFIG_PATH, "r") as f:
+    config = yaml.safe_load(f)
+
+model_word2vec = KeyedVectors.load_word2vec_format(W2V_MODEL_PATH)
+df_applicants = pd.read_json(APPLICANTS_PATH, orient='index')
+df_prospects = pd.read_json(PROSPECTS_PATH, orient='index')
+df_vagas = pd.read_json(VAGAS_PATH, orient='index')
 
 # %%
 # ---
@@ -184,37 +197,32 @@ features_vagas = ['titulo_vaga', 'vaga_sap',
 utils.padroniza_texto(df_vagas, features_vagas)
 
 # tratamento das colunas de idiomas
-language_features = ['nivel_ingles', 'nivel_espanhol']
-idioma_encoders_cand = utils.nivel_idioma(df_applicants, language_features)
-idioma_encoders_vaga = utils.nivel_idioma(df_vagas, language_features)
-
-educacao_encoder_cand = utils.nivel_educacao(df_applicants)
-educacao_encoder_vaga = utils.nivel_educacao(df_vagas)
-artifacts = {}
-artifacts['idioma_encoders_cand'] = idioma_encoders_cand
-artifacts['idioma_encoders_vaga'] = idioma_encoders_vaga
-artifacts['educacao_encoder_cand'] = educacao_encoder_cand
-artifacts['educacao_encoder_vaga'] = educacao_encoder_vaga
 
 # ---
 # ENCODING DE IDIOMAS E EDUCAÇÃO (com nomes de colunas corretos)
 # ---
+from sklearn.preprocessing import OrdinalEncoder
 language_features = ['nivel_ingles', 'nivel_espanhol']
 idioma_encoders = {}
 for lang in language_features:
-    # Fit encoder on combined data to ensure all categories are seen
+    df_applicants[lang] = df_applicants[lang].fillna('desconhecido').replace('', 'desconhecido')
+    df_vagas[lang] = df_vagas[lang].fillna('desconhecido').replace('', 'desconhecido')
     combined = pd.concat([df_applicants[[lang]], df_vagas[[lang]]], ignore_index=True)
-    enc = utils.nivel_idioma(combined, [lang])[lang]
+    enc = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
+    enc.fit(combined[[lang]])
     idioma_encoders[lang] = enc
-    # Transform and assign with _cand/_vaga suffixes
-    df_applicants[f'{lang}_encoded_cand'] = enc.transform(df_applicants[[lang]])
-    df_vagas[f'{lang}_encoded_vaga'] = enc.transform(df_vagas[[lang]])
+    df_applicants[f'{lang}_encoded'] = enc.transform(df_applicants[[lang]])
+    df_vagas[f'{lang}_encoded'] = enc.transform(df_vagas[[lang]])
 
 # Educação
+# Preenche valores ausentes/vazios
+df_applicants['nivel_academico'] = df_applicants['nivel_academico'].fillna('desconhecido').replace('', 'desconhecido')
+df_vagas['nivel_academico'] = df_vagas['nivel_academico'].fillna('desconhecido').replace('', 'desconhecido')
 combined_educ = pd.concat([df_applicants[['nivel_academico']], df_vagas[['nivel_academico']]], ignore_index=True)
-educacao_encoder = utils.nivel_educacao(combined_educ)
-df_applicants['nivel_academico_encoded_cand'] = educacao_encoder.transform(df_applicants[['nivel_academico']])
-df_vagas['nivel_academico_encoded_vaga'] = educacao_encoder.transform(df_vagas[['nivel_academico']])
+educacao_encoder = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
+educacao_encoder.fit(combined_educ[['nivel_academico']])
+df_applicants['nivel_academico_encoded'] = educacao_encoder.transform(df_applicants[['nivel_academico']])
+df_vagas['nivel_academico_encoded'] = educacao_encoder.transform(df_vagas[['nivel_academico']])
 
 # ---
 # Salva modelo e artefatos
@@ -243,17 +251,20 @@ for tipo in df_vagas['tipo_contratacao_cleaned']:
 
 # coluna binária para cada categoria
 for tipo in tipos_contratacao:
-    tipo = tipo.lower()
-    tipo = (
+    # Limpa e normaliza o nome do tipo para criar um nome de coluna válido.
+    # O 'tipo' original é preservado para a verificação na lista.
+    tipo_normalizado = tipo.lower()
+    tipo_normalizado = (
         unicodedata
-        .normalize('NFKD', str(tipo))
+        .normalize('NFKD', str(tipo_normalizado))
         .encode('ascii', 'ignore')
         .decode('utf-8')
     )
-    tipo = re.sub(r'[^a-zA-Z0-9\s]', '', str(tipo))
-    df_vagas[f'contratacao_{tipo.replace('/', '_').replace(' ', '_')}'] = (
+    tipo_normalizado = re.sub(r'[^a-zA-Z0-9\s]', '', str(tipo_normalizado))
+    nome_coluna = f"contratacao_{tipo_normalizado.strip().replace(' ', '_')}"
+    df_vagas[nome_coluna] = (
         df_vagas['tipo_contratacao_cleaned']
-        .apply(lambda x: 1 if tipo in x else 0)
+        .apply(lambda lista_tipos: 1 if tipo in lista_tipos else 0)
     )
 
 df_vagas = df_vagas.drop(
@@ -431,13 +442,13 @@ utils.similaridade(
 # %%
 # similaridade para ordinal_encoder e para colunas binárias
 df_final['ingles'] = (
-    df_final['nivel_ingles_encoded_cand_cand']
-    - df_final['nivel_ingles_encoded_vaga_vaga']
+    df_final['nivel_ingles_encoded_cand']
+    - df_final['nivel_ingles_encoded_vaga']
 )
 
 df_final['espanhol'] = (
-    df_final['nivel_espanhol_encoded_cand_cand']
-    - df_final['nivel_espanhol_encoded_vaga_vaga']
+    df_final['nivel_espanhol_encoded_cand']
+    - df_final['nivel_espanhol_encoded_vaga']
 )
 
 df_final['gap_senioridade'] = (
@@ -449,8 +460,8 @@ df_final['possui_senioridade_minima'] = (
 ).astype(int)
 
 df_final['possui_nivel_academico_minimo'] = (
-    df_final['nivel_academico_encoded_cand_cand']
-    >= df_final['nivel_academico_encoded_vaga_vaga']
+    df_final['nivel_academico_encoded_cand']
+    >= df_final['nivel_academico_encoded_vaga']
 ).astype(int)
 
 # similaridade para features binárias
@@ -469,13 +480,7 @@ df_final['compatibilidade_pcd'] = np.select(condicoes, valores, default=1)
 # ---
 # Definição de Dataframe final para o modelo
 # ---
-feature_list = ['ingles', 'espanhol', 'outro_idioma_sim', 'cargo_sim',
-                'area_atuacao_sim', 'certificacoes_sim',
-                'outras_certificacoes_sim', 'gap_senioridade',
-                'possui_senioridade_minima', 'possui_nivel_academico_minimo',
-                'compatibilidade_pcd', 'conhecimentos_tecnicos_sim',
-                'atividades_sim', 'competencias_sim',
-                'objetivo_sim', 'target_var']
+feature_list = config['feature_list'] + ['target_var']
 df_final = df_final[feature_list]
 
 # %%
@@ -491,22 +496,17 @@ X_train, X_test, y_train, y_test = train_test_split(X,
                                                     random_state=42
                                                     )
 
-params = {
-    'colsample_bytree': 0.7,
-    'gamma': 0,
-    'learning_rate': 0.01,
-    'max_depth': 9,
-    'n_estimators': 400,
-    'reg_alpha': 0.1,
-    'reg_lambda': 2,
-    'subsample': 0.8
-    }
-model = XGBRegressor(**params)
+model = XGBRegressor(**config['model_params']['xgbregressor'])
 
 utils.evaluation(model, X_train, y_train, X_test, y_test)
 
 # %%
 # Salvando Artefatos para Produção
+MODEL_PATH = Path(__file__).resolve().parent / 'artifacts' / 'model.joblib'
+ARTIFACTS_PATH = Path(__file__).resolve().parent / 'artifacts' / 'preprocessing_artifacts.joblib'
+# Garante que o diretório existe antes de salvar
+MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
 artifacts['model_features'] = X.columns.to_list()
-joblib.dump(model, 'model.joblib')
-joblib.dump(artifacts, 'preprocessing_artifacts.joblib')
+artifacts['tipos_contratacao'] = list(tipos_contratacao)  # Salva a lista de tipos de contratação
+joblib.dump(model, MODEL_PATH)
+joblib.dump(artifacts, ARTIFACTS_PATH)

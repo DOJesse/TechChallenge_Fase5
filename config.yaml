@@ -1,0 +1,27 @@
+model_params:
+  xgbregressor:
+    colsample_bytree: 0.7
+    gamma: 0
+    learning_rate: 0.01
+    max_depth: 9
+    n_estimators: 400
+    reg_alpha: 0.1
+    reg_lambda: 2
+    subsample: 0.8
+
+feature_list:
+  - 'ingles'
+  - 'espanhol'
+  - 'outro_idioma_sim'
+  - 'cargo_sim'
+  - 'area_atuacao_sim'
+  - 'certificacoes_sim'
+  - 'outras_certificacoes_sim'
+  - 'gap_senioridade'
+  - 'possui_senioridade_minima'
+  - 'possui_nivel_academico_minimo'
+  - 'compatibilidade_pcd'
+  - 'conhecimentos_tecnicos_sim'
+  - 'atividades_sim'
+  - 'competencias_sim'
+  - 'objetivo_sim'

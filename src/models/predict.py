@@ -6,6 +6,7 @@ import joblib
 import re
 import unicodedata
 from gensim.models import KeyedVectors
+from pathlib import Path
 from typing import Dict, Any
 
 # Importa as funções de pré-processamento do seu arquivo de utilitários
@@ -41,15 +42,16 @@ class PredictionPipeline:
             if isinstance(artifacts, dict):
                 self.ordinal_encoders = artifacts.get('ordinal_encoders', {})
                 self.model_features_order = artifacts.get('model_features', [])
+                self.tipos_contratacao = artifacts.get('tipos_contratacao', [])
             else:
                 print("Aviso: Artefatos corrompidos, usando valores padrão")
                 self.ordinal_encoders = {}
                 self.model_features_order = []
+                self.tipos_contratacao = []
         except Exception as e:
             print(f"Erro ao carregar artefatos: {e}, usando valores padrão")
             self.ordinal_encoders = {}
             self.model_features_order = []
-        #self.tipos_contratacao = artifacts.get('tipos_contratacao', set())
 
         # Carrega o modelo Word2Vec
         self.model_w2v = KeyedVectors.load_word2vec_format(w2v_model_path)
@@ -238,25 +240,20 @@ class PredictionPipeline:
             .apply(lambda x: [item.strip() for item in x.split(',') if item.strip()])
             )
 
-        # listando tipos únicos de contratação
-        tipos_contratacao = set()
-        for tipo in df_vagas['tipo_contratacao_cleaned']:
-            for t in tipo:
-                tipos_contratacao.add(t)
-
-        # coluna binária para cada categoria
-        for tipo in tipos_contratacao:
-            tipo = tipo.lower()
-            tipo = (
+        # CRÍTICO: Usa a lista de tipos de contratação salva do treinamento
+        # para garantir que as colunas sejam consistentes.
+        for tipo_contrato in self.tipos_contratacao:
+            tipo_normalizado = tipo_contrato.lower()
+            tipo_normalizado = (
                 unicodedata
-                .normalize('NFKD', str(tipo))
+                .normalize('NFKD', str(tipo_normalizado))
                 .encode('ascii', 'ignore')
                 .decode('utf-8')
             )
-            tipo = re.sub(r'[^a-zA-Z0-9\s]', '', str(tipo))
-            df_vagas[f'contratacao_{tipo.replace('/', '_').replace(' ', '_')}'] = (
+            nome_coluna = f"contratacao_{re.sub(r'[^a-zA-Z0-9s]', '', tipo_normalizado).strip().replace(' ', '_')}"
+            df_vagas[nome_coluna] = (
                 df_vagas['tipo_contratacao_cleaned']
-                .apply(lambda x: 1 if tipo in x else 0)
+                .apply(lambda lista_tipos: 1 if tipo_contrato in lista_tipos else 0)
             )
 
         df_vagas = df_vagas.drop(
@@ -399,22 +396,19 @@ class PredictionPipeline:
         # ---
         # 6. Definição de Dataframe final para o modelo
         # ---
-        feature_list = ['ingles', 'espanhol', 'outro_idioma_sim', 'cargo_sim',
-                        'area_atuacao_sim', 'certificacoes_sim',
-                        'outras_certificacoes_sim', 'gap_senioridade',
-                        'possui_senioridade_minima', 'possui_nivel_academico_minimo',
-                        'compatibilidade_pcd', 'conhecimentos_tecnicos_sim',
-                        'atividades_sim', 'competencias_sim', 'objetivo_sim',]
-        df_final = df_final[feature_list]
+        # CRÍTICO: Garante que o dataframe final tenha exatamente as mesmas colunas
+        # e na mesma ordem que o modelo foi treinado.
+        final_features_df = pd.DataFrame(columns=self.model_features_order, index=df_final.index)
 
-        # Garantir que todas as colunas que o modelo espera existam, preenchendo com 0 se faltar
-        #for col in self.model_features_order:
-            #if col not in df_final.columns:
-                #df_final[col] = 0
-        
-        # Retornar o DataFrame com as colunas na ordem correta
-        return df_final
-        #return df_final[self.model_features_order]
+        # Copia os valores das colunas que existem
+        for col in self.model_features_order:
+            if col in df_final.columns:
+                final_features_df[col] = df_final[col]
+
+        # Preenche colunas faltantes (ex: tipos de contrato não presentes nesta vaga) com 0
+        final_features_df = final_features_df.fillna(0)
+
+        return final_features_df
 
     def predict(self, candidate_data: Dict[str, Any], vacancy_data: Dict[str, Any]) -> float:
         """
@@ -432,10 +426,13 @@ class PredictionPipeline:
 
 # --- Bloco de Execução Principal (Exemplo de como usar a classe) ---
 if __name__ == '__main__':
-    # Caminhos para os artefatos salvos
-    MODEL_PATH = 'model.joblib'
-    ARTIFACTS_PATH = 'preprocessing_artifacts.joblib'
-    W2V_MODEL_PATH = 'src/word2vec/cbow_s100.txt'
+    # Define os caminhos de forma robusta a partir da localização do script
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+    
+    # Caminhos para os artefatos salvos na pasta 'artifacts'
+    MODEL_PATH = PROJECT_ROOT / 'artifacts' / 'model.joblib'
+    ARTIFACTS_PATH = PROJECT_ROOT / 'artifacts' / 'preprocessing_artifacts.joblib'
+    W2V_MODEL_PATH = PROJECT_ROOT / 'src' / 'word2vec' / 'cbow_s100.txt'
 
     # 1. Inicializa a pipeline (carrega os modelos e artefatos em memória)
     pipeline = PredictionPipeline(
