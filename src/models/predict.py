@@ -10,11 +10,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 # Importa as funções de pré-processamento do seu arquivo de utilitários
-try:
-    import models.utils as utils
-except ImportError:
-    from src.models import utils
-
+import utils
 
 class PredictionPipeline:
     """
@@ -416,8 +412,6 @@ class PredictionPipeline:
         """
         # Prepara os dados usando a pipeline interna
         processed_df = self._prepare_data(candidate_data, vacancy_data)
-        print("Features sent to model:")
-        print(processed_df)
         # Faz a predição
         prediction = self.model.predict(processed_df)
         
@@ -485,7 +479,7 @@ if __name__ == '__main__':
             "nivel_profissional": "Sênior"
             },
             "formacao_e_idiomas": {
-            "nivel_academico": "Ensino Superior Completo",
+            "nivel_academico": "Pós Graduação Completo",
             "instituicao_ensino_superior": "Universidade Paulista",
             "cursos": "Ciência da Computação",
             "ano_conclusao": "0",
@@ -506,7 +500,7 @@ if __name__ == '__main__':
             "nome_superior_imediato": "",
             "email_superior_imediato": ""
         },
-            "cv_pt": "Desenvolvedora Frontend Sênior com 5 anos de experiência em criação de interfaces de usuário responsivas e de alta performance. Proficiente em React, JavaScript, HTML, CSS e metodologias ágeis. Experiência em liderança de equipes e mentoria de desenvolvedores juniores. Apaixonada por tecnologia e sempre em busca de novos desafios. \n\n**Experiência Profissional:**\n\n* **Tech Solutions Ltda.** (Jan/2022 - Atualmente)\n    * Desenvolvedora Frontend Sênior\n    * Responsável pelo desenvolvimento e manutenção de aplicações web utilizando React e Redux.\n    * Liderança técnica de uma equipe de 3 desenvolvedores.\n    * Otimização de performance e experiência do usuário.\n\n* **Web Innovators S.A.** (Jul/2019 - Dez/2021)\n    * Desenvolvedora Frontend Pleno\n    * Desenvolvimento de componentes reutilizáveis em React.\n    * Colaboração com equipes de design e backend.\n\n**Formação Acadêmica:**\n\n* **Pós-graduação em Engenharia de Software**\n    * Universidade Federal do Rio de Janeiro (2021 - 2022)\n\n* **Bacharelado em Ciência da Computação**\n    * Universidade Estadual do Rio de Janeiro (2015 - 2019)\n\n**Idiomas:**\n\n* Português (Nativo)\n* Inglês (Fluente)\n* Espanhol (Intermediário)\n* Francês (Básico)\n\n**Certificações:**\n\n* React Developer Certification\n* Certified Scrum Master",
+            "cv_pt": "Desenvolvedora Frontend Sênior com 5 anos de experiência em criação de interfaces de usuário, sql avançado, python, responsivas e de alta performance. Proficiente em React, JavaScript, HTML, CSS e metodologias ágeis. Experiência em liderança de equipes e mentoria de desenvolvedores juniores. Apaixonada por tecnologia e sempre em busca de novos desafios. \n\n**Experiência Profissional:**\n\n* **Tech Solutions Ltda.** (Jan/2022 - Atualmente)\n    * Desenvolvedora Frontend Sênior\n    * Responsável pelo desenvolvimento e manutenção de aplicações web utilizando React e Redux.\n    * Liderança técnica de uma equipe de 3 desenvolvedores.\n    * Otimização de performance e experiência do usuário.\n\n* **Web Innovators S.A.** (Jul/2019 - Dez/2021)\n    * Desenvolvedora Frontend Pleno\n    * Desenvolvimento de componentes reutilizáveis em React.\n    * Colaboração com equipes de design e backend.\n\n**Formação Acadêmica:**\n\n* **Pós-graduação em Engenharia de Software**\n    * Universidade Federal do Rio de Janeiro (2021 - 2022)\n\n* **Bacharelado em Ciência da Computação**\n    * Universidade Estadual do Rio de Janeiro (2015 - 2019)\n\n**Idiomas:**\n\n* Português (Nativo)\n* Inglês (Fluente)\n* Espanhol (Intermediário)\n* Francês (Básico)\n\n**Certificações:**\n\n* React Developer Certification\n* Certified Scrum Master",
             "cv_en": "Senior Frontend Developer with 5 years of experience in creating responsive and high-performance user interfaces. Proficient in React, JavaScript, HTML, CSS, and agile methodologies. Experienced in team leadership and mentoring junior developers. Passionate about technology and always seeking new challenges.\n\n**Professional Experience:**\n\n* **Tech Solutions Ltda.** (Jan/2022 - Present)\n    * Senior Frontend Developer\n    * Responsible for the development and maintenance of web applications using React and Redux.\n    * Technical leadership of a team of 3 developers.\n    * Optimization of performance and user experience.\n\n* **Web Innovators S.A.** (Jul/2019 - Dec/2021)\n    * Frontend Developer\n    * Development of reusable components in React.\n    * Collaboration with design and backend teams.\n\n**Education:**\n\n* **Postgraduate in Software Engineering**\n    * Federal University of Rio de Janeiro (2021 - 2022)\n\n* **Bachelor's Degree in Computer Science**\n    * State University of Rio de Janeiro (2015 - 2019)\n\n**Languages:**\n\n* Portuguese (Native)\n* English (Fluent)\n* Spanish (Intermediate)\n* French (Basic)\n\n**Certifications:**\n\n* React Developer Certification\n* Certified Scrum Master"
         }
     }
@@ -565,6 +559,6 @@ if __name__ == '__main__':
     # 3. Faz a predição
     score = pipeline.predict(candidate_data=novo_candidato, vacancy_data=nova_vaga)
 
-    print("\\n" + "="*30)
+    print("\n" + "="*30)
     print(f"  Score de Match Predito: {score:.4f}")
     print("="*30)

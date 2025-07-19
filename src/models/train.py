@@ -10,7 +10,7 @@ from gensim.models import KeyedVectors
 from sklearn.model_selection import train_test_split
 from xgboost import XGBRegressor
 
-from . import utils
+import utils
 # %%
 # ---
 # carrega de dados e modelo word2vec pré-treinado
@@ -20,9 +20,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 CONFIG_PATH = PROJECT_ROOT / 'config.yaml'
 W2V_MODEL_PATH = PROJECT_ROOT / 'src' / 'word2vec' / 'cbow_s100.txt'
-APPLICANTS_PATH = PROJECT_ROOT / 'data' / 'applicants.json'
-PROSPECTS_PATH = PROJECT_ROOT / 'data' / 'prospects.json'
-VAGAS_PATH = PROJECT_ROOT / 'data' / 'vagas.json'
+APPLICANTS_PATH = PROJECT_ROOT / 'src' / 'data' / 'applicants.json'
+PROSPECTS_PATH = PROJECT_ROOT / 'src' / 'data' / 'prospects.json'
+VAGAS_PATH = PROJECT_ROOT / 'src' / 'data' / 'vagas.json'
 
 OUTPUT_DIR = PROJECT_ROOT / 'artifacts'
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

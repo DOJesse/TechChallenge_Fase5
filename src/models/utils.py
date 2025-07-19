@@ -48,7 +48,7 @@ def expand_vector(df: pd.DataFrame, feature_list: List[str], model: KeyedVectors
     # criação de nomes para as colunas
     for feature in feature_list:
         df[f'{feature}_embedding'] = df[f'{feature}'].apply(lambda x: document_vector(x, model, num_features))
-        new_embedding_columns = [f'{feature}_{i}' for i in range(num_features)]
+        new_embedding_columns = [f'{feature}_emb_{i}' for i in range(num_features)]
         df_embeddings_expanded = pd.DataFrame(
             df[f'{feature}_embedding'].tolist(), # Converte a Series de arrays para uma lista de listas
             columns=new_embedding_columns,        # Atribui os nomes das colunas
