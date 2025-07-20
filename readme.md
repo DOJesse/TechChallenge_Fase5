@@ -58,10 +58,10 @@ graph TB
     D --> K
     C --> L
     
-    style A fill:#e1f5fe
-    style B fill:#f3e5f5
-    style I fill:#fff3e0
-    style K fill:#e8f5e8
+    style A fill:#1976d2,stroke:#fff,stroke-width:2px,color:#fff
+    style B fill:#7b1fa2,stroke:#fff,stroke-width:2px,color:#fff
+    style I fill:#f57c00,stroke:#fff,stroke-width:2px,color:#fff
+    style K fill:#388e3c,stroke:#fff,stroke-width:2px,color:#fff
 ```
 
 ### **Componentes Principais**

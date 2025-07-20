@@ -1,17 +1,20 @@
 [run]
-source = src
+source = src/
 omit = 
     */tests/*
     */test_*
     */__pycache__/*
     */venv/*
     */.venv/*
+    */migrations/*
+    */docs/*
     setup.py
 
 [report]
 exclude_lines =
     pragma: no cover
     def __repr__
+    def __str__
     if self.debug:
     if settings.DEBUG
     raise AssertionError
@@ -21,8 +24,14 @@ exclude_lines =
     class .*\bProtocol\):
     @(abc\.)?abstractmethod
 
+show_missing = True
+precision = 2
+skip_covered = False
+skip_empty = True
+
 [html]
-directory = reports/coverage
+directory = reports/coverage/
+title = TechChallenge Fase 5 - Coverage Report
 
 [xml]
 output = reports/coverage.xml
