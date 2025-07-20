@@ -59,6 +59,11 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# Test reports directory
+reports/
+*.html
+*.xml
+
 # Translations
 *.mo
 *.pot

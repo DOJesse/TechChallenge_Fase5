@@ -1,7 +1,7 @@
 import pytest
 import pandas as pd
 import numpy as np
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 import sys
 import os
 
@@ -98,25 +98,21 @@ class TestDocumentVector:
 
 @pytest.mark.unit
 class TestExpandVector:
-    def test_expand_vector_normal_case(self, mock_word2vec_model):
-        df = pd.DataFrame({
-            'text1': ['python sql', 'machine learning'],
-            'text2': ['data science', 'artificial intelligence'],
-            'other_col': [1, 2]
-        })
-        features = ['text1', 'text2']
+    def test_expand_vector_normal_case(self):
+        """Testa a funcionalidade básica de expandir um vetor em colunas."""
+        # Mock do modelo Word2Vec
+        mock_model = MagicMock()
+        mock_model.key_to_index = {'test': 0, 'word': 1}
+        mock_model.__getitem__.side_effect = lambda x: np.array([1, 2, 3]) if x in ['test', 'word'] else np.zeros(3)
         
-        result = expand_vector(df, features, mock_word2vec_model, 5)
+        df = pd.DataFrame({'text_feature': ['test word', 'another test']})
+        result = expand_vector(df, ['text_feature'], mock_model, 3)
         
-        assert isinstance(result, pd.DataFrame)
-        # O resultado deve ter as colunas dos embeddings
-        assert len(result.columns) == 10  # 2 features * 5 dimensions each
-        assert all(col.startswith(('text1_', 'text2_')) for col in result.columns)
-        # Verificar que o DataFrame original foi modificado (colunas removidas)
-        assert 'text1' not in df.columns
-        assert 'text2' not in df.columns
+        # Verifica se as colunas esperadas foram criadas
+        expected_columns = ['text_feature_emb_0', 'text_feature_emb_1', 'text_feature_emb_2']
+        assert all(col in result.columns for col in expected_columns)
+        assert len(result) == 2  # Duas linhas no resultado
 
-@pytest.mark.unit
 class TestNivelIdioma:
     def test_nivel_idioma_encoding(self):
         df = pd.DataFrame({

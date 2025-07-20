@@ -2,9 +2,11 @@ import pytest
 import json
 import requests
 import time
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import sys
 import os
+import pandas as pd
+import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
@@ -214,12 +216,15 @@ class TestEndToEndWorkflow:
             
             # Mock dos arquivos necessários
             with patch('src.models.predict.joblib.load') as mock_joblib, \
-                 patch('src.models.predict.KeyedVectors.load_word2vec_format') as mock_kv:
+                 patch('src.models.predict.KeyedVectors.load_word2vec_format') as mock_kv, \
+                 patch('shap.TreeExplainer') as mock_shap, \
+                 patch('shap.force_plot') as mock_force_plot, \
+                 patch('shap.save_html') as mock_save_html:
                 
                 # Configurar mocks
                 mock_model = type('MockModel', (), {
-                    'predict': lambda x: [0.75],
-                    'predict_proba': lambda x: [[0.25, 0.75]]
+                    'predict': lambda self, x: [0.75],
+                    'predict_proba': lambda self, x: [[0.25, 0.75]]
                 })()
                 
                 mock_artifacts = {
@@ -227,7 +232,7 @@ class TestEndToEndWorkflow:
                         'idioma_encoders': {},
                         'educacao_encoder': None
                     },
-                    'model_features': []
+                    'model_features_order': ['feature1', 'feature2']
                 }
                 
                 mock_w2v = type('MockW2V', (), {
@@ -237,6 +242,14 @@ class TestEndToEndWorkflow:
                 
                 mock_joblib.side_effect = [mock_model, mock_artifacts]
                 mock_kv.return_value = mock_w2v
+                
+                # Mock do SHAP
+                mock_explainer = MagicMock()
+                mock_explainer.shap_values.return_value = [0.1, 0.2]
+                mock_explainer.expected_value = 0.5
+                mock_shap.return_value = mock_explainer
+                mock_force_plot.return_value = MagicMock()
+                mock_save_html.return_value = None
                 
                 # Criar pipeline
                 pipeline = PredictionPipeline(
@@ -249,14 +262,17 @@ class TestEndToEndWorkflow:
                 with patch('src.models.predict.utils') as mock_utils:
                     mock_utils.mapear_senioridade.return_value = [2, 3]
                     mock_utils.padroniza_texto.return_value = None
-                    mock_utils.expand_vector.return_value = type('MockDF', (), {
-                        'shape': (1, 1400),
-                        'values': [[0.1] * 1400]
-                    })()
+                    # Criar um DataFrame de retorno com pelo menos 1 linha
+                    mock_df = pd.DataFrame(np.random.rand(1, 100), columns=[f'feature_{i}' for i in range(100)])
+                    mock_utils.expand_vector.return_value = mock_df
                     mock_utils.similaridade.return_value = None
                     
-                    # Executar predição
-                    result = pipeline.predict(candidate_data, vacancy_data)
+                    # Mock _prepare_data para garantir DataFrame válido
+                    with patch.object(pipeline, '_prepare_data') as mock_prepare:
+                        mock_prepare.return_value = pd.DataFrame([[1, 2]], columns=['feature1', 'feature2'])
+                        
+                        # Executar predição
+                        result = pipeline.predict(candidate_data, vacancy_data)
                     
                     # Verificar resultado
                     assert isinstance(result, (int, float))

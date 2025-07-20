@@ -1,105 +1,305 @@
-# Datathon Machine Learning Engineering
+# 🚀 TechChallenge Fase 5 - ML Engineering Platform
 
-Este repositório contém a solução do Datathon de Machine Learning Engineering para otimizar o processo de "match" entre candidatos e vagas da Decision. O aplicativo utiliza processamento de linguagem natural, engenharia de atributos e modelos de machine learning para sugerir o melhor encaixe entre perfis e oportunidades.
+[![Coverage](https://img.shields.io/badge/coverage-54%25-yellow.svg)](reports/coverage/index.html)
+[![Tests](https://img.shields.io/badge/tests-67%20passing-brightgreen.svg)](reports/test_report.html)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+Uma solução completa de Machine Learning Engineering para otimizar o processo de matching entre candidatos e vagas, utilizando processamento de linguagem natural, engenharia de features avançada e modelos de ML em produção.
+
+## 🏗️ **Arquitetura do Sistema**
+
+```mermaid
+graph TB
+    A[Frontend Streamlit] --> B[API Flask]
+    B --> C[Prediction Service]
+    C --> D[ML Pipeline]
+    D --> E[Word2Vec Model]
+    D --> F[XGBoost Model]
+    B --> G[Metrics Service]
+    H[Docker Containers] --> A
+    H --> B
+    I[Test Suite] --> J[Coverage Reports]
+    I --> K[HTML Reports]
+```
 
 ---
 
-## 1. Estrutura do Projeto
+## 📁 **Estrutura do Projeto**
 
 ```text
 TechChallenge_Fase5/
-├── src/
-│   ├── app/
-│   │   ├── main.py                # Script principal (Streamlit)
-│   │   └── requirements.txt       # Dependências do app
-│   ├── features/
-│   │   └── feature_engineering.py # Engenharia de atributos
-│   ├── models/
-│   │   ├── pipeline.joblib        # Pipeline treinado
-│   │   ├── word2vec_model.kv      # Modelo Word2Vec
-│   │   └── artifacts/             # Artefatos do modelo
-│   └── data/
-│       └── raw/                   # Dados brutos (JSON)
-│           ├── applicants.json
-│           ├── prospects.json
-│           └── vagas.json
-├── src/word2vec/
-│   └── cbow_s50.txt               # Embeddings Word2Vec (baixar manualmente)
-├── docker/
-│   ├── Dockerfile.api             # Dockerfile para API
-│   ├── Dockerfile.streamlit       # Dockerfile para Streamlit
-│   └── docker-compose.yaml        # Orquestração
-├── streamlit_app.py               # App principal (Streamlit)
-├── readme.md                      # Esta documentação
+├── 📁 src/                        # Código fonte principal
+│   ├── 📁 core/                   # ✅ Configurações centralizadas
+│   │   ├── config.py              # Configurações do sistema
+│   │   ├── exceptions.py          # Exceções customizadas
+│   │   └── constants.py           # Constantes do projeto
+│   ├── 📁 services/               # ✅ Serviços de negócio
+│   │   └── prediction_service.py  # Serviço de predição isolado
+│   ├── 📁 app/                    # 🔄 API Flask refatorada
+│   │   ├── main.py                # Aplicação Flask principal
+│   │   └── requirements.txt       # Dependências da API
+│   ├── 📁 features/               # ✅ Engenharia de features (100% cobertura)
+│   │   └── feature_engineering.py # Processamento de features
+│   ├── 📁 models/                 # 🤖 Modelos de ML
+│   │   ├── predict.py             # Pipeline de predição (86% cobertura)
+│   │   ├── train.py               # Pipeline de treinamento
+│   │   ├── utils.py               # ✅ Utilitários (100% cobertura)
+│   │   └── artifacts/             # Artefatos salvos do modelo
+│   └── 📁 data/                   # Dados do projeto
+│       ├── applicants.json        # Dados de candidatos
+│       ├── prospects.json         # Dados de prospects
+│       └── vagas.json             # Dados de vagas
+├── 📁 tests/                      # ✅ Suite de testes completa
+│   ├── unit/                      # Testes unitários
+│   ├── integration/               # Testes de integração
+│   ├── fixtures/                  # Fixtures de teste
+│   └── conftest.py                # Configurações pytest
+├── 📁 reports/                    # 📊 Relatórios automáticos
+│   ├── coverage/                  # Relatórios de cobertura HTML
+│   ├── test_report.html           # Relatório de testes HTML
+│   ├── coverage.xml               # Cobertura XML (CI/CD)
+│   └── junit.xml                  # Relatório JUnit
+├── 📁 docker/                     # 🐳 Containerização
+│   ├── Dockerfile.api             # Container da API
+│   ├── Dockerfile.streamlit       # Container do Streamlit
+│   └── docker-compose.yaml        # Orquestração completa
+├── 📁 docs/                       # 📚 Documentação
+│   ├── REPORTS.md                 # Guia de relatórios
+│   ├── RESTRUCTURE_PROPOSAL.md    # Proposta de arquitetura
+│   └── RESTRUCTURE_SUMMARY.md     # Resumo das melhorias
+├── streamlit_app.py               # Interface web principal
+├── generate_test_reports.py       # ✅ Script de relatórios
+├── validate_structure.py          # ✅ Validador de estrutura
+└── pytest.ini                     # Configurações de teste
 ```
 
 ---
 
-## 2. Dados
+## 📊 **Métricas de Qualidade**
 
-Os dados de treinamento em JSON **não são replicados neste repositório** devido ao tamanho dos arquivos. Para executar o projeto, é necessário baixá-los manualmente pelo link:
+| Métrica | Valor | Status |
+|---------|-------|--------|
+| **Cobertura de Código** | 54% | 🟡 Bom |
+| **Testes Passando** | 67/67 | ✅ Excelente |
+| **Warnings** | 0 | ✅ Limpo |
+| **Arquitetura** | Modular | ✅ Enterprise-Ready |
 
-[Google Drive - Dados de Treinamento](https://drive.google.com/drive/folders/1f3jtTRyOK-PBvND3JTPTAxHpnSrH7rFR?usp=sharing)
+### 📈 **Cobertura por Módulo:**
+- `src/features/feature_engineering.py`: **100%** ✅
+- `src/models/utils.py`: **100%** ✅
+- `src/core/`: **92%** ✅
+- `src/models/predict.py`: **86%** ✅
+- `src/app/main.py`: **78%** ✅
+- `src/services/prediction_service.py`: **69%** 🟡
 
-Após o download, coloque os arquivos `applicants.json`, `prospects.json` e `vagas.json` na pasta:
+## 🗄️ **Dados e Artefatos**
 
-```
-TechChallenge_Fase5/src/data/raw/
-```
+⚠️ **Importante**: Os dados de treinamento em JSON e modelos não estão no repositório devido ao tamanho dos arquivos.
 
-* **vagas.json**: informações sobre vagas
-* **prospects.json**: lista de prospecções por vaga
-* **applicants.json**: perfis completos dos candidatos
+### 📥 **Download Obrigatório:**
 
-O arquivo de embeddings Word2Vec `cbow_s50.txt` **também não está no repositório** devido ao tamanho. Baixe pelo link:
+1. **Dados de Treinamento** - [Google Drive](https://drive.google.com/drive/folders/1f3jtTRyOK-PBvND3JTPTAxHpnSrH7rFR?usp=sharing)
+   ```bash
+   # Salvar em: src/data/
+   ├── applicants.json    # Perfis dos candidatos
+   ├── prospects.json     # Prospecções por vaga  
+   └── vagas.json         # Informações das vagas
+   ```
 
-[cbow_s50.txt - Word2Vec (zip)](http://143.107.183.175:22980/download.php?file=embeddings/word2vec/cbow_s50.zip)
-
-Após extrair, salve o arquivo `cbow_s50.txt` em:
-
-```
-TechChallenge_Fase5/src/word2vec/
-```
-
-* **cbow_s50.txt**: arquivo de embeddings Word2Vec utilizado no projeto
+2. **Word2Vec Embeddings** - [cbow_s50.txt](http://143.107.183.175:22980/download.php?file=embeddings/word2vec/cbow_s50.zip)
+   ```bash
+   # Extrair e salvar em: src/word2vec/
+   └── cbow_s50.txt       # Embeddings Word2Vec pré-treinados
+   ```
 
 ---
 
-## 3. Instalação
+## ⚙️ **Instalação e Execução**
 
-1. Clone o repositório:
+### 🔧 **Método 1: Execução Local**
 
-   ```bash
-   git clone https://github.com/DOJesse/TechChallenge_Fase5
-   cd TechChallenge_Fase5
-   ```
-2. Crie e ative um ambiente virtual (venv):
+```bash
+# 1. Clone o repositório
+git clone https://github.com/DOJesse/TechChallenge_Fase5
+cd TechChallenge_Fase5
 
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   ```
-3. Instale as dependências:
+# 2. Configure ambiente virtual
+python3 -m venv .venv
+source .venv/bin/activate  # Linux/Mac
+# .venv\Scripts\activate   # Windows
 
-   ```bash
-   pip install -r src/app/requirements.txt
-   ```
+# 3. Instale dependências
+pip install -r src/app/requirements.txt
 
-4. Execute o aplicativo via Docker:
+# 4. Execute aplicação Streamlit
+streamlit run streamlit_app.py
 
-   ```bash
-   docker-compose -f docker-compose.yaml up --build
-   ```
+# 5. Execute API Flask (opcional - em outro terminal)
+cd src/app && python main.py
+```
 
-   O app estará disponível em `localhost:8502`.
+### 🐳 **Método 2: Docker (Recomendado)**
+
+```bash
+# Execução completa com Docker Compose
+docker-compose -f docker/docker-compose.yaml up --build
+
+# Serviços disponíveis:
+# ├── 🌐 Streamlit: http://localhost:8501
+# ├── 🔗 API Flask: http://localhost:5000  
+# ├── 📊 Prometheus: http://localhost:9090
+# └── 📈 Grafana: http://localhost:3000
+```
 
 ---
 
-## 4. Testes Unitários
+## 🧪 **Desenvolvimento e Testes**
 
-Este projeto inclui uma suite completa de testes unitários e de integração para garantir a qualidade e confiabilidade do código.
+### 🔍 **Executar Suite de Testes:**
 
-### Estrutura dos Testes
+```bash
+# Testes unitários e integração
+pytest
+
+# Gerar relatórios completos
+python generate_test_reports.py
+
+# Relatórios gerados:
+# ├── reports/test_report.html     # Relatório visual HTML
+# ├── reports/coverage.xml         # Cobertura para CI/CD
+# ├── reports/junit.xml            # Relatório JUnit
+# └── reports/coverage/index.html  # Cobertura detalhada
+```
+
+### 📊 **Validar Estrutura do Projeto:**
+
+```bash
+python validate_structure.py
+# Status esperado: "EXCELENTE ✅"
+```
+
+### 🛠️ **Configurações de Desenvolvimento:**
+
+```bash
+# Configurar ambiente Python (se necessário)
+# O sistema detecta automaticamente:
+# ├── Conda environments
+# ├── Virtual environments (venv)
+# └── System Python
+```
+
+## 🚀 **Funcionalidades Principais**
+
+### 🤖 **Sistema de Matching Inteligente**
+- **Word2Vec**: Análise semântica de habilidades e requisitos
+- **XGBoost**: Modelo de classificação para score de compatibilidade  
+- **SHAP**: Explicabilidade das predições em tempo real
+- **Feature Engineering**: Processamento avançado de texto e metadados
+
+### 🌐 **Interfaces Múltiplas**
+- **Streamlit App**: Interface web interativa para usuários finais
+- **REST API**: Endpoints para integração com outros sistemas
+- **Métricas**: Monitoramento Prometheus + Grafana
+
+### 📊 **Análise e Relatórios**
+- Dashboard interativo com visualizações
+- Exportação de resultados em múltiplos formatos
+- Análise de fit cultural e técnico
+- Sugestões personalizadas de melhoria
+
+---
+
+## 🔧 **Arquitetura Técnica**
+
+### 🏗️ **Padrões Implementados**
+- **Service Layer**: Isolamento da lógica de negócio
+- **Configuration Management**: Configurações centralizadas e por ambiente
+- **Dependency Injection**: Baixo acoplamento entre componentes
+- **Exception Handling**: Tratamento robusto de erros personalizados
+
+### 🧪 **Qualidade de Código**
+- **Test Coverage**: 54% com relatórios detalhados
+- **CI/CD Ready**: Integração com pipelines automatizados
+- **Code Quality**: Validação de estrutura automatizada
+- **Documentation**: Documentação técnica completa
+
+### 🐳 **DevOps e Deployment**
+- **Containerização**: Docker multi-estágio otimizado
+- **Orquestração**: Docker Compose para desenvolvimento
+- **Monitoramento**: Métricas de aplicação e sistema
+- **Logs**: Sistema de logging estruturado
+
+---
+
+## 📚 **Documentação Técnica**
+
+| Documento | Descrição | Status |
+|-----------|-----------|--------|
+| [`REPORTS.md`](REPORTS.md) | Guia completo de relatórios e métricas | ✅ |
+| [`RESTRUCTURE_PROPOSAL.md`](RESTRUCTURE_PROPOSAL.md) | Proposta de arquitetura modular | ✅ |
+| [`RESTRUCTURE_SUMMARY.md`](RESTRUCTURE_SUMMARY.md) | Resumo das melhorias implementadas | ✅ |
+| `API_DOCS.md` | Documentação da API REST | 🔄 Em desenvolvimento |
+
+---
+
+## 🤝 **Contribuição**
+
+### 📋 **Diretrizes de Desenvolvimento**
+```bash
+# 1. Fork do repositório
+# 2. Criar branch feature
+git checkout -b feature/nova-funcionalidade
+
+# 3. Implementar mudanças com testes
+# 4. Validar qualidade
+python validate_structure.py
+pytest --cov=src --cov-report=html
+
+# 5. Commit e push
+git commit -m "feat: adiciona nova funcionalidade"
+git push origin feature/nova-funcionalidade
+
+# 6. Abrir Pull Request
+```
+
+### 🔍 **Checklist de Qualidade**
+- [ ] Testes unitários passando (67/67)
+- [ ] Cobertura > 50% mantida
+- [ ] Estrutura validada (EXCELENTE)
+- [ ] Documentação atualizada
+- [ ] Sem warnings ou errors
+
+## 📞 **Contato e Suporte**
+
+### 👨‍💻 **Equipe de Desenvolvimento**
+- **Tech Lead**: Machine Learning Engineering
+- **Repositório**: [GitHub - TechChallenge_Fase5](https://github.com/DOJesse/TechChallenge_Fase5)
+- **Issues**: Para bugs e feature requests
+
+### 📄 **Licença**
+Este projeto está licenciado sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
+
+### 🎯 **Roadmap**
+- [ ] **v2.0**: Implementação de ensemble de modelos
+- [ ] **v2.1**: API GraphQL para queries complexas  
+- [ ] **v2.2**: Sistema de feedback contínuo
+- [ ] **v3.0**: Deployment em Kubernetes
+
+---
+
+<div align="center">
+
+**🎉 TechChallenge Fase 5 - ML Engineering Platform**
+
+[![Made with ❤️](https://img.shields.io/badge/Made%20with-❤️-red.svg)](https://github.com/DOJesse/TechChallenge_Fase5)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://docker.com)
+[![ML](https://img.shields.io/badge/ML-XGBoost%20%2B%20Word2Vec-green.svg)](#)
+
+*Transformando o futuro do recrutamento com IA* 🚀
+
+</div>
 
 ```
 tests/

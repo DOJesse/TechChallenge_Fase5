@@ -15,9 +15,10 @@ from src.features.feature_engineering import (
 
 @pytest.mark.unit
 class TestFeatureEngineering:
+    """Testes para as funções de engenharia de features."""
     
     def test_text_features_list_exists(self):
-        """Testa se a lista de features de texto está definida"""
+        """Verifica se a lista de features de texto está definida."""
         assert isinstance(text_features_list, list)
         assert len(text_features_list) > 0
         
@@ -30,16 +31,18 @@ class TestFeatureEngineering:
             assert feature in text_features_list
 
     def test_document_vector_with_valid_text(self, mock_word2vec_model):
-        """Testa document_vector com texto válido"""
-        text = "python machine learning"
-        result = document_vector(text, mock_word2vec_model, 50)
+        """Testa se um vetor não nulo é retornado para um texto válido."""
+        # Configura o mock para retornar um vetor não-zero para palavras conhecidas
+        mock_word2vec_model.key_to_index = {'palavra': 0, 'teste': 1}
+        mock_word2vec_model.__getitem__.side_effect = lambda x: np.ones(50) if x in ['palavra', 'teste'] else np.zeros(50)
         
-        assert isinstance(result, np.ndarray)
+        text = "palavra de teste"
+        result = document_vector(text, mock_word2vec_model, 50)
+        assert not np.all(result == 0)
         assert result.shape == (50,)
-        assert not np.all(result == 0)  # Não deve ser vetor zero para texto válido
 
     def test_document_vector_with_empty_text(self, mock_word2vec_model):
-        """Testa document_vector com texto vazio"""
+        """Testa se um vetor de zeros é retornado para um texto vazio."""
         result = document_vector("", mock_word2vec_model, 50)
         
         assert isinstance(result, np.ndarray)
@@ -81,26 +84,15 @@ class TestFeatureEngineering:
         # Deve retornar a média das palavras conhecidas (python, sql)
 
     def test_expand_vector_basic_functionality(self, mock_word2vec_model):
-        """Testa funcionalidade básica do expand_vector"""
-        df = pd.DataFrame({
-            'titulo': ['python developer', 'data scientist'],
-            'modalidade': ['remote work', 'on site'],
-            'other_column': [1, 2]
-        })
-        features = ['titulo', 'modalidade']
-        
-        result = expand_vector(df, features, mock_word2vec_model, 5)
+        """Testa a funcionalidade básica de expand_vector."""
+        data = {'text_column': ['this is a test', 'another test']}
+        df = pd.DataFrame(data)
+        features = ['text_column']
+        result = expand_vector(df, features, mock_word2vec_model, 50)
         
         assert isinstance(result, pd.DataFrame)
-        assert result.shape == (2, 10)  # 2 features × 5 dimensions
-        
-        # Verificar nomes das colunas
-        expected_columns = []
-        for feature in features:
-            for i in range(5):
-                expected_columns.append(f"{feature}_{i}")
-        
-        assert all(col in result.columns for col in expected_columns)
+        assert result.shape[1] == 50
+        assert all(f'text_column_{i}' in result.columns for i in range(50))
 
     def test_expand_vector_with_empty_dataframe(self, mock_word2vec_model):
         """Testa expand_vector com DataFrame vazio"""
@@ -120,55 +112,51 @@ class TestFeatureEngineering:
         })
         features = ['titulo', 'modalidade']
         
-        result = expand_vector(df, features, mock_word2vec_model, 3)
+        result = expand_vector(df, features, mock_word2vec_model, 50)
         
         assert isinstance(result, pd.DataFrame)
-        assert result.shape == (3, 6)  # 3 linhas, 6 colunas (2 features × 3 dimensions)
+        assert result.shape == (3, 100)  # 3 linhas, 100 colunas (2 features × 50 dimensions)
         
         # Verificar se valores NaN resultaram em vetores zero
         assert not result.isna().any().any()  # Não deve haver NaN no resultado
 
     def test_expand_vector_preserves_index(self, mock_word2vec_model):
-        """Testa se expand_vector preserva o índice original"""
-        df = pd.DataFrame({
-            'titulo': ['python developer', 'data scientist'],
-            'modalidade': ['remote work', 'on site']
-        }, index=[10, 20])
-        features = ['titulo', 'modalidade']
+        """Testa se o índice do DataFrame é preservado."""
+        data = {'text_column': ['test one', 'test two']}
+        df = pd.DataFrame(data, index=['A', 'B'])
+        features = ['text_column']
+        result = expand_vector(df, features, mock_word2vec_model, 50)
         
-        result = expand_vector(df, features, mock_word2vec_model, 3)
-        
-        assert list(result.index) == [10, 20]
+        pd.testing.assert_index_equal(df.index, result.index)
 
     def test_expand_vector_single_feature(self, mock_word2vec_model):
-        """Testa expand_vector com apenas uma feature"""
-        df = pd.DataFrame({
-            'titulo': ['python developer', 'data scientist', 'machine learning engineer']
-        })
-        features = ['titulo']
+        """Testa a expansão com uma única característica de texto."""
+        data = {'feature1': ['text one'], 'feature2': ['text two']}
+        df = pd.DataFrame(data)
+        features = ['feature1']
+        result = expand_vector(df, features, mock_word2vec_model, 50)
         
-        result = expand_vector(df, features, mock_word2vec_model, 4)
-        
-        assert isinstance(result, pd.DataFrame)
-        assert result.shape == (3, 4)  # 3 linhas, 4 colunas
-        assert all(col.startswith('titulo_') for col in result.columns)
+        assert 'feature1_0' in result.columns
+        assert 'feature2_0' not in result.columns
 
-    def test_expand_vector_different_num_features(self, mock_word2vec_model):
-        """Testa expand_vector com diferentes números de features"""
-        df = pd.DataFrame({
-            'titulo': ['python developer'],
-            'modalidade': ['remote work']
-        })
-        features = ['titulo', 'modalidade']
+    @pytest.mark.parametrize("num_features", [1, 10, 50])
+    def test_expand_vector_different_num_features(self, mock_word2vec_model, num_features):
+        """Testa a expansão com diferentes números de features."""
+        data = {'text_column': ['a sample text']}
+        df = pd.DataFrame(data)
+        features = ['text_column']
         
-        # Testar com diferentes tamanhos de vetor
-        for num_features in [1, 5, 10, 50]:
-            result = expand_vector(df, features, mock_word2vec_model, num_features)
-            expected_cols = len(features) * num_features
-            assert result.shape == (1, expected_cols)
+        # Ajusta o mock para o tamanho do vetor esperado
+        mock_word2vec_model.vector_size = num_features
+        mock_word2vec_model.wv.__getitem__.return_value = np.random.rand(num_features)
+        
+        result = expand_vector(df, features, mock_word2vec_model, num_features)
+        
+        assert result.shape[1] == num_features
+        assert all(f'text_column_{i}' in result.columns for i in range(num_features))
 
-@pytest.mark.unit
 class TestFeatureEngineeringIntegration:
+    """Testes de integração para feature engineering."""
     
     def test_full_pipeline_simulation(self, mock_word2vec_model):
         """Testa uma simulação do pipeline completo de feature engineering"""

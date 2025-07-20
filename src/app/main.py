@@ -1,109 +1,93 @@
 import os
 import sys
-# Adiciona o diretório raiz do projeto (onde está 'src/') ao PYTHONPATH
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-
+import logging
 import joblib
 import numpy as np
 import pandas as pd
-import logging
-import time
 from flask import Flask, request, jsonify
 from prometheus_flask_exporter import PrometheusMetrics
 from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
-from src.features.feature_engineering import expand_vector, text_features_list
-from src.models.predict import PredictionPipeline
 
-# Configuração do logger
+# Configuração de logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+# Adiciona o diretório do projeto ao sys.path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Inicializar métricas do Prometheus
-metrics = PrometheusMetrics(app)
-
-# Métricas customizadas de inferência - registrar no registry padrão
+from src.core.config import config
+from src.core.exceptions import ModelLoadError, PredictionError, DataValidationError
+from src.services.prediction_service import PredictionService
 from prometheus_client import REGISTRY
 
-model_inference_duration = Histogram(
-    'model_inference_duration_seconds',
-    'Tempo de inferência do modelo em segundos',
-    registry=REGISTRY
-)
+# Desregistrar métricas padrão do coletor do Windows, se existirem
+for collector in list(REGISTRY._collector_to_names.keys()):
+    if hasattr(collector, '_collector') and 'Windows' in str(type(collector._collector)):
+        REGISTRY.unregister(collector)
 
-model_predictions_total = Counter(
-    'model_predictions_total',
-    'Total de predições realizadas pelo modelo',
-    registry=REGISTRY
-)
+# Métricas globais para evitar duplicação
+_model_predictions_total = None
+_model_prediction_score_sum = None
 
-model_prediction_error = Gauge(
-    'model_prediction_error_absolute',
-    'Erro absoluto médio das predições do modelo',
-    registry=REGISTRY
-)
-
-
-# Carregar modelos serializados e pipeline customizado
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-artifacts_dir = os.path.join(project_root, 'src', 'models', 'artifacts')
-model_path = os.path.join(artifacts_dir, 'model.joblib')
-artifacts_path = os.path.join(artifacts_dir, 'preprocessing_artifacts.joblib')
-w2v_path = os.path.join(project_root, 'src', 'word2vec', 'cbow_s100.txt')
-
-# Inicializa o pipeline customizado
-prediction_pipeline = PredictionPipeline(
-    model_path=model_path,
-    artifacts_path=artifacts_path,
-    w2v_model_path=w2v_path
-)
-
-# Inicializar métricas com valores padrão para aparecerem no Prometheus
-model_prediction_error.set(0)  # Inicializa com 0
-logger.info("Métricas customizadas inicializadas")
-
-# Lista para manter histórico de erros para cálculo do MAE
-prediction_errors = []
-
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({'status': 'ok'})
-
-@app.route('/metrics')
-def metrics():
-    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
-
-@app.route('/predict', methods=['POST'])
-def predict():
-    data = request.get_json()
-    start_time = time.time()
+def create_app():
+    """Cria e configura uma instância do aplicativo Flask."""
+    global _model_predictions_total, _model_prediction_score_sum
+    
+    app = Flask(__name__)
+    
+    # Inicializa o exportador de métricas
+    metrics = PrometheusMetrics(app)
+    
+    # Métricas customizadas - usar variáveis globais para evitar duplicação
+    if _model_predictions_total is None:
+        _model_predictions_total = Counter('model_predictions_total', 'Total number of model predictions made')
+    if _model_prediction_score_sum is None:
+        _model_prediction_score_sum = Histogram('model_prediction_score', 'Model prediction scores')
+    
+    model_predictions_total = _model_predictions_total
+    model_prediction_score_sum = _model_prediction_score_sum
+    
+    # Carregar o serviço de predição ao iniciar o aplicativo
     try:
-        # Espera-se que o payload tenha 'candidate' e 'vacancy' (dicionários)
-        candidate = data.get('candidate')
-        vacancy = data.get('vacancy')
-        if candidate is None or vacancy is None:
-            return jsonify({'error': 'Payload deve conter "candidate" e "vacancy"'}), 400
-
-        pred = prediction_pipeline.predict(candidate, vacancy)
-        response = {'prediction': float(pred)}
-
-        # Registrar métricas
-        inference_time = time.time() - start_time
-        model_inference_duration.observe(inference_time)
-        model_predictions_total.inc()
-
-        logger.info(f'/predict → {response}')
-        return jsonify(response)
+        prediction_service = PredictionService()
+        logging.info("Serviço de predição carregado com sucesso.")
     except Exception as e:
-        logger.error(f'/predict error: {e}')
-        return jsonify({'error': str(e)}), 400
+        logging.error(f"Erro ao carregar o serviço de predição: {e}")
+        prediction_service = None
 
-# A rota /predict_raw pode ser removida ou adaptada conforme a nova estrutura de entrada/saída
+    @app.route('/health', methods=['GET'])
+    def health():
+        return jsonify({"status": "ok"}), 200
 
+    @app.route('/metrics', methods=['GET'])
+    def main_metrics():
+        return metrics.export()
+
+    @app.route('/predict', methods=['POST'])
+    def predict():
+        if not prediction_service:
+            return jsonify({"error": "Serviço de predição não carregado"}), 500
+            
+        try:
+            data = request.get_json()
+            candidate_data = data['candidate']
+            vacancy_data = data['vacancy']
+            
+            prediction, _ = prediction_service.predict(candidate_data, vacancy_data)
+            
+            # Registrar métricas
+            model_predictions_total.inc()
+            model_prediction_score_sum.observe(prediction)
+            
+            return jsonify({'prediction': prediction})
+        except (DataValidationError, PredictionError) as e:
+            logging.error(f"/predict validation/prediction error: {e}")
+            return jsonify({'error': str(e)}), 400
+        except Exception as e:
+            logging.error(f"/predict error: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    return app
 
 if __name__ == '__main__':
-    # Rode a partir da raiz do projeto:
-    # export PYTHONPATH=$(pwd)
-    # python -m src.app.main
-    app.run(host='0.0.0.0', port=8080)
+    app = create_app()
+    app.run(host='0.0.0.0', port=5000)

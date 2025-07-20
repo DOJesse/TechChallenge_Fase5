@@ -200,11 +200,20 @@ class PredictionPipeline:
         utils.padroniza_texto(df_vagas, features_vagas)
 
         # tratamento das colunas de idiomas
-        for lang, encoder in self.ordinal_encoders.get('idioma_encoders', {}).items():
-            df_applicants[lang] = df_applicants[lang].fillna('Nenhum')
-            df_vagas[lang] = df_vagas[lang].fillna('Nenhum')
-            df_applicants[f'{lang}_encoded_cand'] = encoder.transform(df_applicants[[lang]])
-            df_vagas[f'{lang}_encoded_vaga'] = encoder.transform(df_vagas[[lang]])
+        idioma_encoders = self.ordinal_encoders.get('idioma_encoders', {})
+        if not idioma_encoders:
+            # Se não há encoders, criar colunas encodadas com valores padrão
+            for lang in ['nivel_ingles', 'nivel_espanhol']:
+                if lang in df_applicants.columns:
+                    df_applicants[f'{lang}_encoded'] = 0
+                if lang in df_vagas.columns:
+                    df_vagas[f'{lang}_encoded'] = 0
+        else:
+            for lang, encoder in idioma_encoders.items():
+                df_applicants[lang] = df_applicants[lang].fillna('Nenhum')
+                df_vagas[lang] = df_vagas[lang].fillna('Nenhum')
+                df_applicants[f'{lang}_encoded'] = encoder.transform(df_applicants[[lang]])
+                df_vagas[f'{lang}_encoded'] = encoder.transform(df_vagas[[lang]])
 
         # Educação
         educ_encoder = self.ordinal_encoders.get('educacao_encoder')
@@ -219,8 +228,12 @@ class PredictionPipeline:
                 .replace([np.nan, None, 'nan', 'NaN'], '')
                 .fillna('')
             )
-            df_applicants['nivel_academico_encoded_cand'] = educ_encoder.transform(df_applicants[['nivel_academico']])
-            df_vagas['nivel_academico_encoded_vaga'] = educ_encoder.transform(df_vagas[['nivel_academico']])
+            df_applicants['nivel_academico_encoded'] = educ_encoder.transform(df_applicants[['nivel_academico']])
+            df_vagas['nivel_academico_encoded'] = educ_encoder.transform(df_vagas[['nivel_academico']])
+        else:
+            # Se não há encoder, criar colunas encodadas com valores padrão
+            df_applicants['nivel_academico_encoded'] = 0
+            df_vagas['nivel_academico_encoded'] = 0
 
         # tratamento dos regimes de contratação
         # separação dos tipos de contratação que estavam como string única
@@ -347,14 +360,14 @@ class PredictionPipeline:
             'competencia_tecnicas_e_comportamentais_vaga',
             'competencias_sim'
         )
-        df_final['ingles'] = (
-            df_final['nivel_ingles_encoded_cand_cand']
-            - df_final['nivel_ingles_encoded_vaga_vaga']
+        df_final['diff_nivel_ingles'] = (
+            df_final['nivel_ingles_encoded_cand']
+            - df_final['nivel_ingles_encoded_vaga']
         )
 
-        df_final['espanhol'] = (
-            df_final['nivel_espanhol_encoded_cand_cand']
-            - df_final['nivel_espanhol_encoded_vaga_vaga']
+        df_final['diff_nivel_espanhol'] = (
+            df_final['nivel_espanhol_encoded_cand']
+            - df_final['nivel_espanhol_encoded_vaga']
         )
 
         df_final['gap_senioridade'] = (
@@ -366,18 +379,18 @@ class PredictionPipeline:
         ).astype(int)
 
         df_final['possui_nivel_academico_minimo'] = (
-            df_final['nivel_academico_encoded_cand_cand']
-            >= df_final['nivel_academico_encoded_vaga_vaga']
+            df_final['nivel_academico_encoded_cand']
+            >= df_final['nivel_academico_encoded_vaga']
         ).astype(int)
 
         df_final['possui_nivel_ingles_minimo'] = (
-            df_final['nivel_ingles_encoded_cand_cand']
-            >= df_final['nivel_ingles_encoded_vaga_vaga']
+            df_final['nivel_ingles_encoded_cand']
+            >= df_final['nivel_ingles_encoded_vaga']
         ).astype(int)
 
         df_final['possui_nivel_espanhol_minimo'] = (
-            df_final['nivel_espanhol_encoded_cand_cand']
-            >= df_final['nivel_espanhol_encoded_vaga_vaga']
+            df_final['nivel_espanhol_encoded_cand']
+            >= df_final['nivel_espanhol_encoded_vaga']
         ).astype(int)
 
         # similaridade para features binárias

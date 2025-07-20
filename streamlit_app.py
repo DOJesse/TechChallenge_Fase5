@@ -4,7 +4,7 @@ import streamlit as st
 import requests
 import json
 from docx import Document
-import PyPDF2
+import pypdf
 
 # Página e estilos
 st.set_page_config(page_title="Recruitment Match", layout="wide")
@@ -52,7 +52,7 @@ def extract_docx(uploaded_docx):
 
 @st.cache_data
 def extract_pdf(uploaded_pdf):
-    reader = PyPDF2.PdfReader(uploaded_pdf)
+    reader = pypdf.PdfReader(uploaded_pdf)
     return "\n".join(page.extract_text() or "" for page in reader.pages)
 
 # API Configuration

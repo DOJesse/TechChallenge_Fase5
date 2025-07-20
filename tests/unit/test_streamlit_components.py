@@ -158,7 +158,7 @@ class TestStreamlitFileProcessing:
         # Mock de arquivo PDF
         mock_file = Mock()
         
-        with patch('streamlit_app.PyPDF2.PdfReader') as mock_reader:
+        with patch('streamlit_app.pypdf.PdfReader') as mock_reader:
             # Configurar mock
             mock_page1 = Mock()
             mock_page1.extract_text.return_value = "Texto da página 1"
@@ -183,7 +183,7 @@ class TestStreamlitFileProcessing:
         
         mock_file = Mock()
         
-        with patch('streamlit_app.PyPDF2.PdfReader') as mock_reader:
+        with patch('streamlit_app.pypdf.PdfReader') as mock_reader:
             # Página que retorna None
             mock_page1 = Mock()
             mock_page1.extract_text.return_value = None
@@ -280,10 +280,10 @@ class TestStreamlitAPIIntegration:
         # Verificar argumentos
         assert 'json' in call_args.kwargs
         payload = call_args.kwargs['json']
-        assert 'resume' in payload
-        assert 'job' in payload
-        assert payload['resume']['text'] == resume_text
-        assert payload['job']['text'] == job_text
+        assert 'candidate' in payload
+        assert 'vacancy' in payload
+        assert payload['candidate']['31001']['cv_pt'] == resume_text
+        assert payload['vacancy']['5186']['infos_basicas']['titulo_vaga'] == job_text
 
 @pytest.mark.unit
 class TestStreamlitBusinessLogic:

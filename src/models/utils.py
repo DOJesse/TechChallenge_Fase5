@@ -145,10 +145,10 @@ def similaridade(df: pd.DataFrame, vaga_column: str, cand_column: str, return_co
     # O produto das normas no denominador
     denominator = norm_titulo * norm_resumo
 
-    # Evitar divisão por zero para vetores nulos (ou com norma zero)
-    # Onde o denominador é zero, a similaridade é 0 (ou NaN, dependendo da sua regra)
-    # np.where(condition, if_true, if_false)
-    pair_similarity = np.where(denominator != 0, dot_product / denominator, 0.0)
+    # Evitar divisão por zero para vetores nulos usando np.divide com where
+    # Isso evita warnings de RuntimeWarning sobre divisão inválida
+    with np.errstate(divide='ignore', invalid='ignore'):
+        pair_similarity = np.divide(dot_product, denominator, out=np.zeros_like(dot_product), where=(denominator != 0))
     df[f'{return_column}'] = pair_similarity
 
     return

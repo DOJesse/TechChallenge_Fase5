@@ -74,6 +74,10 @@ SAMPLE_CANDIDATE_COMPLETE = {
     }
 }
 
+def sample_candidate_data():
+    """Retorna dados de exemplo de um candidato."""
+    return SAMPLE_CANDIDATE_COMPLETE
+
 # Dados de vaga para testes
 SAMPLE_VACANCY_COMPLETE = {
     "5186": {
@@ -125,6 +129,103 @@ SAMPLE_VACANCY_COMPLETE = {
         }
     }
 }
+
+def sample_vacancy_data():
+    """Retorna dados de exemplo de uma vaga."""
+    return SAMPLE_VACANCY_COMPLETE
+
+# Dados de candidato com campos faltando
+SAMPLE_CANDIDATE_INCOMPLETE = {
+    "31002": {
+        "infos_basicas": {
+            "telefone_recado": "",
+            "telefone": "(21) 98765-4321",
+            "objetivo_profissional": "Desenvolver soluções inovadoras na área de tecnologia.",
+            "data_criacao": "15-06-2023 10:30:00",
+            "inserido_por": "Pedro Silva",
+            "email": "joao.silva@email.com",
+            "local": "São Paulo",
+            "sabendo_de_nos_por": "Indicação",
+            "data_atualizacao": "15-06-2023 10:30:00",
+            "codigo_profissional": "31002",
+            "nome": "João Silva"
+        },
+        "informacoes_pessoais": {
+            "data_aceite": "2023-06-15",
+            "nome": "João Silva",
+            "cpf": "987.654.321-00",
+            "fonte_indicacao": "Amigo",
+            "email": "joao.silva@email.com",
+            "email_secundario": "joao.contato@email.com",
+            "data_nascimento": "1990-05-15",
+            "telefone_celular": "(11) 91234-5678",
+            "telefone_recado": "(11) 92345-6789",
+            "sexo": "Masculino",
+            "estado_civil": "Casado",
+            "pcd": "Não",
+            "endereco": "Avenida Paulista, 456, Bela Vista, São Paulo - SP",
+            "skype": "joao.silva.skype",
+            "url_linkedin": "https://www.linkedin.com/in/joaosilva",
+            "facebook": ""
+        },
+        "informacoes_profissionais": {
+            "titulo_profissional": "Engenheiro de Dados",
+            "area_atuacao": "Tecnologia da Informação",
+            "conhecimentos_tecnicos": "python, SQL, Spark, ETL, Git",
+            "certificacoes": "Certificação AWS Solutions Architect",
+            "outras_certificacoes": "Scrum Master",
+            "remuneracao": "A combinar",
+            "nivel_profissional": "Pleno"
+        },
+        "formacao_e_idiomas": {
+            "nivel_academico": "Ensino Superior Completo",
+            "instituicao_ensino_superior": "Universidade de São Paulo",
+            "cursos": "Engenharia da Computação",
+            "ano_conclusao": "0",
+            "nivel_ingles": "Fluente",
+            "nivel_espanhol": "Intermediário",
+            "outro_idioma": "Alemão - Básico",
+            "outro_curso": "Outro Curso:"
+        },
+        "cargo_atual": {
+            "id_ibrati": "51820",
+            "email_corporativo": "",
+            "cargo_atual": "Engenheiro de Dados Pleno",
+            "projeto_atual": "",
+            "cliente": "DECISION IBM 15 08",
+            "unidade": "Decision São Paulo",
+            "data_admissao": "24-05-2019",
+            "data_ultima_promocao": "24-05-2020",
+            "nome_superior_imediato": "",
+            "email_superior_imediato": ""
+        },
+        "cv_pt": "Engenheiro de software com foco em backend."
+    }
+}
+
+def sample_incomplete_candidate_data():
+    """Retorna dados de exemplo de um candidato com campos faltando."""
+    return SAMPLE_CANDIDATE_INCOMPLETE
+
+# Dados de vaga com campos faltando
+SAMPLE_VACANCY_INCOMPLETE = {
+    "5187": {
+        "informacoes_basicas": {
+            "titulo_vaga": "Vaga Incompleta"
+        },
+        "perfil_vaga": {
+            "nivel profissional": "Pleno",
+            "nivel_academico": "Graduação Completo",
+            "principais_atividades": "Fazer coisas."
+            # Faltando outras chaves
+        }
+        # 'beneficios' está faltando
+    }
+}
+
+def sample_incomplete_vacancy_data():
+    """Retorna dados de exemplo de uma vaga com campos faltando."""
+    return SAMPLE_VACANCY_INCOMPLETE
 
 # Dados de candidato simplificado para testes rápidos
 SAMPLE_CANDIDATE_MINIMAL = {
@@ -267,4 +368,42 @@ EXPECTED_METRICS = {
     'model_inference_duration_seconds': {'type': 'histogram', 'min': 0},
     'model_predictions_total': {'type': 'counter', 'min': 0},
     'model_prediction_error_absolute': {'type': 'gauge', 'min': 0, 'max': 1}
+}
+
+# Adicionar um candidato com dados faltando
+INCOMPLETE_CANDIDATE_DATA = {
+    "99999": {
+        # 'infos_basicas' está faltando de propósito
+        "informacoes_pessoais": {
+            "nome": "Candidato Incompleto",
+            "pcd": "Não"
+        },
+        "informacoes_profissionais": {
+            "area_atuacao": "Tecnologia",
+            "conhecimentos_tecnicos": "Python"
+            # Faltando outras chaves
+        },
+        "formacao_e_idiomas": {
+            "nivel_academico": "Graduação Completo",
+            "nivel_ingles": "Avançado"
+        },
+        # 'cargo_atual' está faltando
+        "cv_pt": "Um breve currículo."
+    }
+}
+
+# Adicionar uma vaga com dados faltando
+INCOMPLETE_VACANCY_DATA = {
+    "8888": {
+        "informacoes_basicas": {
+            "titulo_vaga": "Vaga Incompleta"
+        },
+        "perfil_vaga": {
+            "nivel profissional": "Pleno",
+            "nivel_academico": "Graduação Completo",
+            "principais_atividades": "Fazer coisas."
+            # Faltando outras chaves
+        }
+        # 'beneficios' está faltando
+    }
 }
