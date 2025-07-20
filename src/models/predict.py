@@ -206,14 +206,19 @@ class PredictionPipeline:
             for lang in ['nivel_ingles', 'nivel_espanhol']:
                 if lang in df_applicants.columns:
                     df_applicants[f'{lang}_encoded'] = 0
+                    df_applicants = df_applicants.drop(columns=[lang])
                 if lang in df_vagas.columns:
                     df_vagas[f'{lang}_encoded'] = 0
+                    df_vagas = df_vagas.drop(columns=[lang])
         else:
             for lang, encoder in idioma_encoders.items():
                 df_applicants[lang] = df_applicants[lang].fillna('Nenhum')
                 df_vagas[lang] = df_vagas[lang].fillna('Nenhum')
                 df_applicants[f'{lang}_encoded'] = encoder.transform(df_applicants[[lang]])
                 df_vagas[f'{lang}_encoded'] = encoder.transform(df_vagas[[lang]])
+                # Remove as colunas originais de string após o encoding
+                df_applicants = df_applicants.drop(columns=[lang])
+                df_vagas = df_vagas.drop(columns=[lang])
 
         # Educação
         educ_encoder = self.ordinal_encoders.get('educacao_encoder')
@@ -230,10 +235,18 @@ class PredictionPipeline:
             )
             df_applicants['nivel_academico_encoded'] = educ_encoder.transform(df_applicants[['nivel_academico']])
             df_vagas['nivel_academico_encoded'] = educ_encoder.transform(df_vagas[['nivel_academico']])
+            # Remove as colunas originais de string após o encoding
+            df_applicants = df_applicants.drop(columns=['nivel_academico'])
+            df_vagas = df_vagas.drop(columns=['nivel_academico'])
         else:
             # Se não há encoder, criar colunas encodadas com valores padrão
             df_applicants['nivel_academico_encoded'] = 0
             df_vagas['nivel_academico_encoded'] = 0
+            # Remove as colunas originais mesmo sem encoder
+            if 'nivel_academico' in df_applicants.columns:
+                df_applicants = df_applicants.drop(columns=['nivel_academico'])
+            if 'nivel_academico' in df_vagas.columns:
+                df_vagas = df_vagas.drop(columns=['nivel_academico'])
 
         # tratamento dos regimes de contratação
         # separação dos tipos de contratação que estavam como string única
@@ -360,12 +373,12 @@ class PredictionPipeline:
             'competencia_tecnicas_e_comportamentais_vaga',
             'competencias_sim'
         )
-        df_final['diff_nivel_ingles'] = (
+        df_final['ingles'] = (
             df_final['nivel_ingles_encoded_cand']
             - df_final['nivel_ingles_encoded_vaga']
         )
 
-        df_final['diff_nivel_espanhol'] = (
+        df_final['espanhol'] = (
             df_final['nivel_espanhol_encoded_cand']
             - df_final['nivel_espanhol_encoded_vaga']
         )
@@ -419,7 +432,9 @@ class PredictionPipeline:
                 final_features_df[col] = df_final[col]
 
         # Preenche colunas faltantes (ex: tipos de contrato não presentes nesta vaga) com 0
-        final_features_df = final_features_df.fillna(0)
+        # Suprimir o warning de downcasting temporariamente
+        with pd.option_context('future.no_silent_downcasting', True):
+            final_features_df = final_features_df.fillna(0)
 
         return final_features_df
 
@@ -446,8 +461,8 @@ class PredictionPipeline:
             
         # Salva o plot em um arquivo HTML
         shap.save_html('shap_plot.html', plot)
-        # Retorna o score (o [0] pega o primeiro valor do array de predição)
-        return prediction[0]
+        # Retorna o score e os valores SHAP como tupla
+        return prediction[0], shap_values
 
 # --- Bloco de Execução Principal (Exemplo de como usar a classe) ---
 if __name__ == '__main__':
@@ -588,7 +603,7 @@ if __name__ == '__main__':
     }
 
     # 3. Faz a predição
-    score = pipeline.predict(candidate_data=novo_candidato, vacancy_data=nova_vaga)
+    score, shap_values = pipeline.predict(candidate_data=novo_candidato, vacancy_data=nova_vaga)
 
     print("\n" + "="*30)
     print("\n" + "="*30)

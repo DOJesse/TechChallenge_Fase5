@@ -15,9 +15,12 @@ RUN pip install --no-cache-dir -r requirements-prod.txt
 # Copia todo o código da pasta src (app + features)
 COPY src src
 
+# Copia os artefatos do modelo
+COPY artifacts artifacts
+
 # Ajusta PYTHONPATH para que o pacote src seja encontrado
 ENV PYTHONPATH=/app
 
-EXPOSE 8080
+EXPOSE 5000
 
 CMD ["python", "-m", "src.app.main"]

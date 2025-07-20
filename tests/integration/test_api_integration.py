@@ -272,7 +272,7 @@ class TestEndToEndWorkflow:
                         mock_prepare.return_value = pd.DataFrame([[1, 2]], columns=['feature1', 'feature2'])
                         
                         # Executar predição
-                        result = pipeline.predict(candidate_data, vacancy_data)
+                        result, shap_values = pipeline.predict(candidate_data, vacancy_data)
                     
                     # Verificar resultado
                     assert isinstance(result, (int, float))

@@ -44,6 +44,17 @@ if 'reset' not in st.session_state:
 job_key = f"job_file_{st.session_state.reset}"
 cand_key = f"candidate_files_{st.session_state.reset}"
 
+def get_classification(score):
+    """Retorna a classificação baseada no score"""
+    if score >= 80:
+        return "Ótimo", "#28a745"  # Verde
+    elif score >= 60:
+        return "Bom", "#007bff"     # Azul
+    elif score >= 40:
+        return "Médio", "#ffc107"   # Amarelo
+    else:
+        return "Ruim", "#dc3545"    # Vermelho
+
 # Funções utilitárias
 @st.cache_data
 def extract_docx(uploaded_docx):
@@ -56,7 +67,7 @@ def extract_pdf(uploaded_pdf):
     return "\n".join(page.extract_text() or "" for page in reader.pages)
 
 # API Configuration
-API_URL = os.getenv("API_URL", "http://api:8080")
+API_URL = os.getenv("API_URL", "http://api:5000")
 
 # Stopwords e matching
 STOPWORDS = set(['e','ou','com','para','dos','das','de','a','o','as','os','que','em','um','uma'])
@@ -169,21 +180,48 @@ if st.session_state.avaliar:
                     result_data['api_prediction'] = api_result.get('prediction', 'N/A')
                     result_data['api_probabilities'] = api_result.get('probabilities', [])
                 results.append(result_data)
-            top3 = sorted(results, key=lambda x: x['score'], reverse=True)[:3]
+            
+            # Ordena todos os resultados por score (maior para menor)
+            all_results = sorted(results, key=lambda x: x['score'], reverse=True)
 
-        # Mostrar cards
-        cols = st.columns(3)
-        for idx, cand in enumerate(top3):
-            with cols[idx]:
-                st.markdown("<div class='card'>", unsafe_allow_html=True)
-                st.subheader(f"{idx+1}. {cand['name']}")
-                st.metric("Score", f"{cand['score']:.0f}%")
-                st.write(f"Atendeu {cand['matched']}/{cand['total']} requisitos")
-                exp = st.expander("Ver requisitos atendidos")
-                for req, kws in cand['details']:
-                    exp.write(f"- **{req}**")
-                    exp.write(f"  - Keywords: {', '.join(kws)}")
-                st.markdown("</div>", unsafe_allow_html=True)
+        # Mostrar todos os resultados
+        st.subheader(f"Resultados da Avaliação - {len(all_results)} candidato(s)")
+        
+        for idx, cand in enumerate(all_results):
+            classification, color = get_classification(cand['score'])
+            
+            # Criar card para cada candidato
+            st.markdown(f"""
+                <div style='background-color: #ffffff; padding: 20px; border-radius: 10px; 
+                           box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 15px 0;
+                           border-left: 5px solid {color};'>
+                    <h3 style='color: #2c3e50; margin-bottom: 10px;'>
+                        {idx+1}. {cand['name']}
+                    </h3>
+                    <div style='display: flex; align-items: center; gap: 20px; margin-bottom: 15px;'>
+                        <div style='background-color: {color}; color: white; padding: 8px 16px; 
+                                   border-radius: 20px; font-weight: bold;'>
+                            {classification}
+                        </div>
+                        <div style='font-size: 24px; font-weight: bold; color: {color};'>
+                            {cand['score']:.0f}%
+                        </div>
+                        <div style='color: #666;'>
+                            Atendeu {cand['matched']}/{cand['total']} requisitos
+                        </div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            # Expandir para ver detalhes dos requisitos
+            with st.expander(f"Ver requisitos atendidos - {cand['name']}"):
+                if cand['details']:
+                    for req, kws in cand['details']:
+                        st.write(f"✅ **{req}**")
+                        st.write(f"   📝 Keywords encontradas: {', '.join(kws)}")
+                        st.write("")
+                else:
+                    st.write("❌ Nenhum requisito foi atendido completamente.")
 else:
     st.markdown("""
         <div style='color:#0a2342; font-size:1.1em; font-weight:600; margin-top:2em;'>

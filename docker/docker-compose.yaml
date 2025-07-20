@@ -4,7 +4,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.api
     ports:
-      - "8080:8080"
+      - "8080:5000"
     networks:
       - monitoring
 
@@ -13,7 +13,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.streamlit
     environment:
-      - API_URL=http://api:8080
+      - API_URL=http://api:5000
     ports:
       - "8502:8501"
     depends_on:

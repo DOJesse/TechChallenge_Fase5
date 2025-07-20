@@ -81,7 +81,7 @@ class TestPredictionPipeline:
 
         candidate_data = {"id": "c1"}
         vacancy_data = {"id": "v1"}
-        prediction = pipeline.predict(candidate_data, vacancy_data)
+        prediction, shap_values = pipeline.predict(candidate_data, vacancy_data)
 
         pipeline._prepare_data.assert_called_once_with(candidate_data, vacancy_data)
         mock_model.predict.assert_called_once()

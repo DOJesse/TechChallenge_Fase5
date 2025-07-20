@@ -2,7 +2,6 @@
 FROM python:3.10-slim
 WORKDIR /app
 
-
 # Copia o requirements-prod.txt da pasta src/app para /app/requirements-prod.txt
 COPY src/app/requirements-prod.txt .
 
@@ -13,5 +12,5 @@ RUN pip install --no-cache-dir -r requirements-prod.txt
 # Copia todo o código da raiz para /app
 COPY . .
 
-EXPOSE 8501
-CMD ["streamlit", "run", "streamlit_app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
+# Comando para rodar o Streamlit
+CMD ["streamlit", "run", "apps/streamlit_app.py", "--server.address", "0.0.0.0", "--server.port", "8501"]
